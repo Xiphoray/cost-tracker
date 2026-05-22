@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>白驹过隙 — 日均成本追踪</title>
+  <link rel="stylesheet" href="/css/style.css?v=27">
+  <link rel="stylesheet" href="/vendor/flatpickr.min.css">
+
+</head>
+<body>
+  <nav class="navbar">
+    <span class="logo">⏳ 白驹过隙</span>
+    <a href="/" class="active">首页</a>
+    <a href="/analytics">分析</a>
+    <a href="/settings">设置</a>
+    <span class="nav-spacer"></span>
+    <button class="nav-logout" onclick="fetch('/api/logout',{method:'POST'}).then(()=>window.location.href='/login')">退出</button>
+    <a href="/admin" class="nav-admin-link" style="display:none;">管理</a>
+  </nav>
+
+  <div class="stats-grid" id="statsGrid">
+    <div class="stat-card"><div class="label">总物品数</div><div class="value accent" id="totalCount">-</div></div>
+    <div class="stat-card"><div class="label">总价值</div><div class="value success" id="totalValue">-</div></div>
+    <div class="stat-card"><div class="label">今日成本</div><div class="value accent" id="todayCost">-</div></div>
+    <div class="stat-card"><div class="label">平均日均成本</div><div class="value" id="avgDailyCost">-</div></div>
+    <div class="stat-card"><div class="label">本月消费</div><div class="value accent" id="monthSpending">-</div></div>
+    <div class="stat-card"><div class="label">订阅服务</div><div class="value" id="subSummary">-</div></div>
+  </div>
+
+  <div class="toolbar">
+    <select id="filterCategory">
+      <option value="">全部类别</option>
+      <option>数码产品</option><option>家居日用</option><option>家用电器</option>
+      <option>户外运动</option><option>服装鞋帽</option><option>美妆护肤</option>
+      <option>食品饮料</option><option>交通工具</option><option>书籍文具</option>
+      <option>其他</option>
+    </select>
+    <select id="filterStatus">
+      <option value="active" selected>在用</option>
+      <option value="">全部状态</option>
+      <option value="retired">已退役</option>
+    </select>
+    <select id="sortBy">
+      <option value="purchase_date" selected>购买日期 ↓</option>
+      <option value="created_at">最近添加</option>
+      <option value="daily_cost">日均成本 ↓</option>
+      <option value="price">价格 ↓</option>
+    </select>
+    <button class="btn btn-accent" onclick="openAddModal()">+ 添加物品</button>
+    <button class="btn btn-outline" onclick="openAddSubModal()">+ 添加订阅</button>
+  </div>
+
+  <details class="collapsible-section" id="subsSection" open>
+    <summary class="section-header collapsible-header">
+      <div class="section-title-row"><span class="section-icon">🧾</span><h3>订阅服务</h3></div>
+      <span class="section-sub" id="subsCount">0 项</span>
+    </summary>
+    <div class="items-grid" id="subsGrid"></div>
+  </details>
+
+  <details class="collapsible-section" id="itemsSection" open>
+    <summary class="section-header collapsible-header">
+      <div class="section-title-row"><span class="section-icon">📦</span><h3>实体物品</h3></div>
+      <span class="section-sub" id="itemsCount">0 项</span>
+    </summary>
+    <div id="itemsYearGroups"></div>
+  </details>
+
+  <!-- Add/Edit Modal -->
+  <div class="modal-overlay" id="itemModal">
+    <div class="modal modal-form">
+      <input type="hidden" id="editId">
+
+      <!-- 物品名称 -->
+      <div class="form-card">
+        <label class="form-label">物品名称</label>
+        <div class="form-name-row">
+          <input type="text" id="fName" placeholder="请输入物品名称" class="form-input-main">
+          <div class="form-icon-picker" onclick="openIconPicker()">
+            <span class="icon-emoji" id="selectedIconEmoji">📦</span>
+            <span class="icon-label">选择图标</span>
+          </div>
+        </div>
+        <input type="hidden" id="fImage">
+        <div class="form-category-bar" onclick="toggleCategoryDropdown()">
+          <span>🏷️ 分类</span>
+          <span><span id="fCategoryDisplay">其他</span> ›</span>
+        </div>
+        <select id="fCategory" style="display:none">
+          <option>数码产品</option><option>家居日用</option><option>家用电器</option>
+          <option>户外运动</option><option>服装鞋帽</option><option>美妆护肤</option>
+          <option>食品饮料</option><option>交通工具</option><option>书籍文具</option>
+          <option>其他</option>
+        </select>
+      </div>
+
+      <!-- 购入价格 -->
+      <div class="form-card">
+        <label class="form-label">购入价格</label>
+        <div class="form-price-row">
+          <span class="price-symbol">¥</span>
+          <input type="number" id="fPrice" placeholder="0.00" step="0.01" class="form-input-price">
+        </div>
+      </div>
+
+      <!-- 时间线 -->
+      <div class="form-section-title">时间线</div>
+      <div class="form-card">
+        <div class="form-timeline-row">
+          <span>📅 购入日期</span>
+          <input type="date" id="fDate" class="form-input-date">
+        </div>
+        <div class="form-timeline-row">
+          <span>🕐 退役日期（选填）</span>
+          <input type="date" id="fRetireDate" class="form-input-date">
+        </div>
+        <div class="form-timeline-row">
+          <span>✅ 保修到期（选填）</span>
+          <input type="date" id="fWarrantyDate" class="form-input-date">
+        </div>
+      </div>
+
+      <!-- 计算方式 -->
+      <div class="form-section-title">计算方式</div>
+      <div class="calc-toggle" id="calcToggle">
+        <button class="active" data-method="按时间">按时间</button>
+        <button data-method="按频次">按频次</button>
+        <button data-method="不计算">不计算</button>
+      </div>
+
+      <!-- 备注 -->
+      <div class="form-card">
+        <label class="form-label">备注</label>
+        <textarea id="fNote" placeholder="先写一句你对它的评价，再补充必要信息，别写已下架这类无用内容..." class="form-textarea"></textarea>
+        <div class="form-help">备注先写一句评价，再写补充说明。</div>
+      </div>
+
+
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeModal()">取消</button>
+        <button class="btn btn-accent" onclick="saveItem()">✓ 保存物品</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 图标选择器弹窗 -->
+  <div class="icon-picker-overlay" id="iconPickerOverlay">
+    <div class="icon-picker-sheet">
+      <div class="icon-picker-handle"></div>
+      <div class="icon-picker-header">
+        <div>
+          <h3>选择图标</h3>
+          <p>按分类快速找到物品图标</p>
+        </div>
+        <button class="icon-picker-close" onclick="closeIconPicker()">✕</button>
+      </div>
+      <div class="icon-picker-search">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="iconSearch" placeholder="搜索图标名称" oninput="filterIcons()">
+      </div>
+      <div class="icon-picker-tabs" id="iconPickerTabs"></div>
+      <div class="icon-picker-grid" id="iconPickerGrid"></div>
+    </div>
+  </div>
+
+  <script src="/js/icons.js"></script>
+  <script src="/js/app.js?v=16"></script>
+  <script src="/vendor/flatpickr.min.js"></script>
+  <script src="/vendor/flatpickr-zh.js"></script>
+
+  <!-- 订阅服务弹窗 -->
+  <div class="modal-overlay" id="subModal">
+    <div class="modal modal-form">
+      <input type="hidden" id="editSubId">
+      <div class="form-card">
+        <label class="form-label">服务名称</label>
+        <input type="text" id="fSubName" placeholder="如：视频会员、云盘、健身卡" class="form-input-main">
+      </div>
+      <div class="form-card">
+        <div class="form-timeline-row">
+          <span>📅 开始时间</span>
+          <input type="date" id="fSubStart" class="form-input-date">
+        </div>
+      </div>
+      <div class="form-card">
+        <label class="form-label">订阅期限</label>
+        <div class="calc-toggle" id="subCycleToggle">
+          <button class="active" data-cycle="月付" onclick="selectSubCycle(event)">月付</button>
+          <button data-cycle="季付" onclick="selectSubCycle(event)">季付</button>
+          <button data-cycle="半年付" onclick="selectSubCycle(event)">半年付</button>
+          <button data-cycle="年付" onclick="selectSubCycle(event)">年付</button>
+        </div>
+      </div>
+      <div class="form-card">
+        <label class="form-label">周期费用</label>
+        <div class="form-price-row">
+          <span class="price-symbol">¥</span>
+          <input type="number" id="fSubPrice" placeholder="0.00" step="0.01" class="form-input-price">
+        </div>
+      </div>
+      <div class="form-card">
+        <label class="form-label">
+          <input type="checkbox" id="fSubAutoRenew"> 到期自动续订
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeSubModal()">取消</button>
+        <button class="btn btn-accent" onclick="saveSubscription()">✓ 保存订阅</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    fetch('/api/auth/check').then(r=>r.json()).then(d=>{
+      if(d.is_admin) document.querySelectorAll('.nav-admin-link').forEach(el=>el.style.display='');
+    });
+  </script>
+</body>
+</html>

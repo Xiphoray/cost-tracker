@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>设置 — 白驹过隙</title>
+  <link rel="stylesheet" href="/css/style.css?v=27">
+</head>
+<body>
+  <nav class="navbar">
+    <span class="logo">⏳ 白驹过隙</span>
+    <a href="/" ">首页</a>
+    <a href="/analytics">分析</a>
+    <a href="/settings" class="active">设置</a>
+    <span class="nav-spacer"></span>
+    <button class="nav-logout" onclick="fetch('/api/logout',{method:'POST'}).then(()=>window.location.href='/login')">退出</button>
+    <a href="/admin" class="nav-admin-link" style="display:none;">管理</a>
+  </nav>
+
+  <div class="settings-container">
+    <!-- ── 计算偏好 ── -->
+    <div class="settings-title">计算偏好</div>
+    <div class="settings-card">
+      <div class="settings-item">
+        <span class="settings-icon">📊</span>
+        <div class="settings-info">
+          <span class="settings-label">计算精度</span>
+        </div>
+        <div class="settings-action" id="precisionAction" onclick="cyclePrecision()">
+          <span id="precisionDisplay">保留 2 位小数</span>
+          <span class="settings-arrow">›</span>
+        </div>
+      </div>
+      <div class="settings-item">
+        <span class="settings-icon">💱</span>
+        <div class="settings-info">
+          <span class="settings-label">币种显示</span>
+        </div>
+        <div class="settings-action" id="currencyAction" onclick="cycleCurrency()">
+          <span id="currencyDisplay">¥ CNY 人民币</span>
+          <span class="settings-arrow">›</span>
+        </div>
+      </div>
+      <div class="settings-item settings-item-toggle">
+        <span class="settings-icon">🗑️</span>
+        <div class="settings-info">
+          <span class="settings-label">已退役物品不计入总资产</span>
+          <span class="settings-desc">开启后首页总资产只统计现役物品</span>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="excludeRetired" onchange="saveExcludeRetired()">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- ── 数据导入 ── -->
+    <div class="settings-title" style="margin-top:28px;">数据导入</div>
+
+    <div class="import-box">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h3 style="margin:0;">🤖 AI 图片识别提示</h3>
+        <button class="btn btn-outline btn-sm" onclick="copyPrompt()">📋 复制</button>
+      </div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">用 AI 识别购物小票、订单截图时，复制这段提示让 AI 按格式输出，粘贴到下方即可导入。</p>
+      <div class="ai-prompt" id="aiPrompt">请从这些图片中识别所有购买物品/订单/收据，然后按以下 JSON 格式输出：
+[{"name": "物品名称", "price": 价格数字, "purchase_date": "YYYY-MM-DD", "category": "类别", "retirement_date": "", "note": "备注"}]
+类别只能是：数码产品、家居日用、家用电器、户外运动、服装鞋帽、美妆护肤、食品饮料、交通工具、书籍文具、其他
+retirement_date 留空表示在用，填写日期表示退役日期。
+note 先写一句对物品的评价，再补充必要信息，不要写"已下架"等无用内容。
+如果看不清日期，用今天日期；看不清类别，用"其他"。</div>
+    </div>
+
+    <div class="import-box">
+      <h3>📋 JSON 文本导入</h3>
+      <textarea id="jsonText" placeholder='粘贴 JSON 数据，例如：
+[{"name":"MacBook Pro","price":12999,"purchase_date":"2024-01-15","category":"数码产品","retirement_date":"","note":"生产力工具，屏幕素质很好"}]'></textarea>
+      <div style="display:flex;gap:12px;margin-top:12px;">
+        <button class="btn btn-outline" onclick="previewImport()">预览</button>
+        <button class="btn btn-accent" onclick="doImport()">确认导入</button>
+      </div>
+      <div id="previewInfo" class="preview-box" style="display:none;"></div>
+    </div>
+
+    <div class="import-box">
+      <h3>📁 文件上传</h3>
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <div>拖拽 JSON 文件到此处，或点击选择（选择后自动导入）</div>
+        <input type="file" id="fileInput" accept=".json" style="display:none">
+      </div>
+      <div id="filePreview" class="preview-box" style="display:none;"></div>
+    </div>
+
+    <!-- ── 数据导出/导入 ── -->
+    <div class="settings-title" style="margin-top:28px;">数据导出 / 导入</div>
+
+    <div class="import-box">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h3 style="margin:0;">📤 导出全部数据</h3>
+        <button class="btn btn-accent" onclick="exportAll()">下载 JSON</button>
+      </div>
+      <p style="font-size:13px;color:var(--text2);margin:0;">导出所有实体物品和订阅服务数据，可用于备份或迁移到其他设备。</p>
+    </div>
+
+    <div class="import-box">
+      <h3>📥 导入完整数据</h3>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">导入包含实体物品和订阅服务的完整数据文件（JSON 格式）。</p>
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;">
+        <label style="font-size:13px;color:var(--text2);"><input type="radio" name="importMode" value="append" checked> 追加模式</label>
+        <label style="font-size:13px;color:var(--text2);"><input type="radio" name="importMode" value="overwrite"> 覆盖模式</label>
+      </div>
+      <div class="drop-zone" id="fullDropZone" onclick="document.getElementById('fullFileInput').click()">
+        <div>拖拽 JSON 文件到此处，或点击选择</div>
+        <input type="file" id="fullFileInput" accept=".json" style="display:none">
+      </div>
+      <div id="fullImportStatus" style="font-size:13px;margin-top:8px;min-height:18px;"></div>
+    </div>
+
+    <!-- ── 账户安全 ── -->
+    <div class="settings-title" style="margin-top:28px;">账户安全</div>
+    <div class="settings-card">
+      <div class="settings-item">
+        <span class="settings-icon">👤</span>
+        <div class="settings-info">
+          <span class="settings-label">用户名</span>
+          <span class="settings-desc" id="currentUsername"></span>
+        </div>
+        <div class="settings-action" onclick="toggleUsernameForm()">
+          <span>修改</span>
+          <span class="settings-arrow">›</span>
+        </div>
+      </div>
+      <div id="usernameForm" style="display:none;padding:12px 16px;">
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block;">新用户名</label>
+          <input type="text" id="newUsername" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;box-sizing:border-box;">
+        </div>
+        <div style="display:flex;gap:12px;">
+          <button class="btn btn-accent" onclick="changeUsername()">确认修改</button>
+          <button class="btn btn-outline" onclick="toggleUsernameForm()">取消</button>
+        </div>
+        <div id="usernameStatus" style="font-size:13px;margin-top:8px;min-height:18px;"></div>
+      </div>
+      <div class="settings-item">
+        <span class="settings-icon">🔑</span>
+        <div class="settings-info">
+          <span class="settings-label">修改密码</span>
+          <span class="settings-desc" id="pwStatus"></span>
+        </div>
+        <div class="settings-action" onclick="togglePwForm()">
+          <span>修改</span>
+          <span class="settings-arrow">›</span>
+        </div>
+      </div>
+      <div id="pwForm" style="display:none;padding:12px 16px;">
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block;">原密码</label>
+          <input type="password" id="oldPw" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;box-sizing:border-box;">
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block;">新密码</label>
+          <input type="password" id="newPw" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;box-sizing:border-box;">
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block;">确认新密码</label>
+          <input type="password" id="confirmPw" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;box-sizing:border-box;">
+        </div>
+        <div style="display:flex;gap:12px;">
+          <button class="btn btn-accent" onclick="changePassword()">确认修改</button>
+          <button class="btn btn-outline" onclick="togglePwForm()">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:20px;text-align:center;">
+      <button class="btn btn-outline" onclick="doLogout()" style="color:var(--accent);border-color:var(--accent);">退出登录</button>
+    </div>
+  </div>
+
+  <script>
+    // ── 设置逻辑 ──
+    let settings = {};
+
+    const PRECISION_OPTIONS = [
+      { value: '0', label: '保留整数' },
+      { value: '1', label: '保留 1 位小数' },
+      { value: '2', label: '保留 2 位小数' },
+    ];
+    const CURRENCY_OPTIONS = [
+      { value: 'CNY', label: '¥ CNY 人民币' },
+      { value: 'USD', label: '$ USD 美元' },
+      { value: 'EUR', label: '€ EUR 欧元' },
+      { value: 'JPY', label: '¥ JPY 日元' },
+    ];
+
+    async function loadSettings() {
+      const res = await fetch('/api/settings');
+      settings = await res.json();
+      renderSettings();
+    }
+
+    function renderSettings() {
+      const p = PRECISION_OPTIONS.find(o => o.value === settings.precision) || PRECISION_OPTIONS[2];
+      document.getElementById('precisionDisplay').textContent = p.label;
+      const c = CURRENCY_OPTIONS.find(o => o.value === settings.currency) || CURRENCY_OPTIONS[0];
+      document.getElementById('currencyDisplay').textContent = c.label;
+      document.getElementById('excludeRetired').checked = settings.exclude_retired === 'true';
+    }
+
+    function cyclePrecision() {
+      const idx = PRECISION_OPTIONS.findIndex(o => o.value === settings.precision);
+      const next = PRECISION_OPTIONS[(idx + 1) % PRECISION_OPTIONS.length];
+      settings.precision = next.value;
+      document.getElementById('precisionDisplay').textContent = next.label;
+      saveSetting('precision', next.value);
+    }
+
+    function cycleCurrency() {
+      const idx = CURRENCY_OPTIONS.findIndex(o => o.value === settings.currency);
+      const next = CURRENCY_OPTIONS[(idx + 1) % CURRENCY_OPTIONS.length];
+      settings.currency = next.value;
+      document.getElementById('currencyDisplay').textContent = next.label;
+      saveSetting('currency', next.value);
+    }
+
+    function saveExcludeRetired() {
+      const val = document.getElementById('excludeRetired').checked ? 'true' : 'false';
+      settings.exclude_retired = val;
+      saveSetting('exclude_retired', val);
+    }
+
+    async function saveSetting(key, value) {
+      await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [key]: value }),
+      });
+    }
+
+    loadSettings();
+
+    // ── 数据导出 ──
+    async function exportAll() {
+      const res = await fetch('/api/export');
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `白驹过隙_${data.username}_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // ── 完整数据导入 ──
+    const fullDrop = document.getElementById('fullDropZone');
+    const fullInput = document.getElementById('fullFileInput');
+    fullDrop.addEventListener('dragover', e => { e.preventDefault(); fullDrop.style.borderColor = 'var(--accent)'; });
+    fullDrop.addEventListener('dragleave', () => { fullDrop.style.borderColor = ''; });
+    fullDrop.addEventListener('drop', e => { e.preventDefault(); fullDrop.style.borderColor = ''; if (e.dataTransfer.files[0]) doFullImport(e.dataTransfer.files[0]); });
+    fullInput.addEventListener('change', () => { if (fullInput.files[0]) doFullImport(fullInput.files[0]); });
+
+    async function doFullImport(file) {
+      const status = document.getElementById('fullImportStatus');
+      status.textContent = '读取中...';
+      status.style.color = 'var(--text2)';
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (!data.items && !data.subscriptions) {
+          status.textContent = '❌ 文件格式不正确';
+          status.style.color = 'var(--accent)';
+          return;
+        }
+        const mode = document.querySelector('input[name=importMode]:checked').value;
+        const res = await fetch('/api/import-full?mode=' + mode, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        const result = await res.json();
+        if (result.ok) {
+          let msg = '✓ 导入成功：' + result.imported_items + ' 件物品 + ' + result.imported_subs + ' 个订阅';
+          if (result.imported_settings > 0) msg += ' + ' + result.imported_settings + ' 项设置';
+          status.textContent = msg;
+          status.style.color = 'var(--success)';
+        } else {
+          status.textContent = '❌ ' + (result.detail || '导入失败');
+          status.style.color = 'var(--accent)';
+        }
+      } catch (e) {
+        status.textContent = '❌ 文件解析失败：' + e.message;
+        status.style.color = 'var(--accent)';
+      }
+      fullInput.value = '';
+    }
+
+    // ── 加载当前用户名 ──
+    fetch('/api/auth/check').then(r=>r.json()).then(d=>{
+      if(d.username) document.getElementById('currentUsername').textContent = d.username;
+    });
+
+    // ── 用户名修改 ──
+    function toggleUsernameForm() {
+      const form = document.getElementById('usernameForm');
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+      document.getElementById('usernameStatus').textContent = '';
+      document.getElementById('newUsername').value = '';
+    }
+    async function changeUsername() {
+      const newU = document.getElementById('newUsername').value.trim();
+      const status = document.getElementById('usernameStatus');
+      if (!newU || newU.length < 2) { status.textContent = '用户名至少2个字符'; status.style.color='var(--accent)'; return; }
+      try {
+        const res = await fetch('/api/change-username', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ new_username: newU }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          document.getElementById('currentUsername').textContent = data.username;
+          status.textContent = '✓ 修改成功';
+          status.style.color = 'var(--success)';
+          setTimeout(() => toggleUsernameForm(), 1000);
+        } else {
+          const data = await res.json();
+          status.textContent = data.detail || '修改失败';
+          status.style.color = 'var(--accent)';
+        }
+      } catch (e) { status.textContent = '网络错误'; status.style.color='var(--accent)'; }
+    }
+
+    // ── 密码修改 ──
+    function togglePwForm() {
+      const form = document.getElementById('pwForm');
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+      document.getElementById('pwStatus').textContent = '';
+      document.getElementById('oldPw').value = '';
+      document.getElementById('newPw').value = '';
+      document.getElementById('confirmPw').value = '';
+    }
+
+    async function changePassword() {
+      const oldPw = document.getElementById('oldPw').value;
+      const newPw = document.getElementById('newPw').value;
+      const confirmPw = document.getElementById('confirmPw').value;
+      const status = document.getElementById('pwStatus');
+      if (!oldPw || !newPw) { status.textContent = '请填写完整'; return; }
+      if (newPw !== confirmPw) { status.textContent = '两次密码不一致'; return; }
+      if (newPw.length < 6) { status.textContent = '密码至少6位'; return; }
+      try {
+        const res = await fetch('/api/change-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ old_password: oldPw, new_password: newPw }),
+        });
+        if (res.ok) {
+          togglePwForm();
+          status.textContent = '✓ 密码已更新';
+          status.style.color = 'var(--success)';
+        } else {
+          const data = await res.json();
+          status.textContent = data.detail || '修改失败';
+          status.style.color = 'var(--accent)';
+        }
+      } catch (e) {
+        status.textContent = '网络错误';
+        status.style.color = 'var(--accent)';
+      }
+    }
+
+    // ── 退出登录 ──
+    async function doLogout() {
+      await fetch('/api/logout', { method: 'POST' });
+      window.location.href = '/login';
+    }
+  </script>
+  <script src="/js/import.js"></script>
+
+  <script>
+    fetch('/api/auth/check').then(r=>r.json()).then(d=>{
+      if(d.is_admin) document.querySelectorAll('.nav-admin-link').forEach(el=>el.style.display='');
+    });
+  </script>
+</body>
+</html>

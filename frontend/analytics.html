@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>数据洞察 — 白驹过隙</title>
+  <script src="/vendor/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/css/style.css?v=27">
+</head>
+<body>
+  <nav class="navbar">
+    <span class="logo">⏳ 白驹过隙</span>
+    <a href="/" ">首页</a>
+    <a href="/analytics">分析</a>
+    <a href="/settings">设置</a>
+    <span class="nav-spacer"></span>
+    <button class="nav-logout" onclick="fetch('/api/logout',{method:'POST'}).then(()=>window.location.href='/login')">退出</button>
+    <a href="/admin" class="nav-admin-link" style="display:none;">管理</a>
+  </nav>
+
+  <div class="analytics-container">
+  <!-- ── 时间筛选 ── -->
+  <div class="insight-header">
+    <h2>📊 数据洞察</h2>
+    <div class="period-tabs" id="periodTabs">
+      <button class="active" data-period="all">全部</button>
+      <button data-period="year">本年</button>
+      <button data-period="quarter">本季</button>
+      <button data-period="month">本月</button>
+    </div>
+  </div>
+
+  <!-- ── 分类分布 ── -->
+  <section class="insight-section">
+    <div class="section-header">
+      <div class="section-title-row">
+        <span class="section-icon">🥧</span>
+        <h3>分类分布</h3>
+        <span class="section-sub" id="topCategory"></span>
+      </div>
+      <div class="chart-toggle">
+        <button class="active" data-mode="amount">按金额</button>
+        <button data-mode="count">按数量</button>
+      </div>
+    </div>
+
+    <div class="donut-wrap">
+      <canvas id="categoryChart"></canvas>
+      <div class="donut-center" id="donutCenter">
+        <span class="donut-label">按金额</span>
+        <span class="donut-value" id="donutTotal">¥0</span>
+      </div>
+    </div>
+
+    <div class="cat-cards" id="catCards"></div>
+  </section>
+
+  <!-- ── 持有区间 ── -->
+  <section class="insight-section">
+    <div class="section-header">
+      <div class="section-title-row">
+        <span class="section-icon">⏳</span>
+        <h3>持有区间</h3>
+      </div>
+    </div>
+    <div class="holding-chart-wrap">
+      <canvas id="holdingChart"></canvas>
+    </div>
+    <div class="holding-grid" id="holdingGrid"></div>
+  </section>
+
+  <!-- ── 订阅服务分析 ── -->
+  <section class="insight-section" id="subSection" style="display:none;">
+    <div class="section-header">
+      <div class="section-title-row">
+        <span class="section-icon">🧾</span>
+        <h3>订阅服务</h3>
+        <span class="section-sub" id="subTotalInfo"></span>
+      </div>
+    </div>
+    <div class="sub-summary-cards" id="subSummaryCards"></div>
+    <div class="spending-list" id="subList"></div>
+  </section>
+
+  <!-- ── 消费榜单 ── -->
+  <section class="insight-section">
+    <div class="section-header">
+      <div class="section-title-row">
+        <span class="section-icon">🏅</span>
+        <h3>消费榜单（含订阅年费）</h3>
+      </div>
+    </div>
+    <div class="spending-list" id="spendingList"></div>
+  </section>
+
+  <!-- ── 月度趋势 ── -->
+  <section class="insight-section">
+    <div class="section-header">
+      <div class="section-title-row">
+        <span class="section-icon">📈</span>
+        <h3>月度消费趋势</h3>
+      </div>
+    </div>
+    <div class="chart-card-wide">
+      <canvas id="trendChart"></canvas>
+    </div>
+  </section>
+
+  <!-- ── 日均成本排行 ── -->
+  <section class="insight-section">
+    <div class="section-header">
+      <div class="section-title-row">
+        <span class="section-icon">🔥</span>
+        <h3>日均成本 Top 10</h3>
+      </div>
+    </div>
+    <div class="chart-card-wide">
+      <canvas id="rankingChart"></canvas>
+    </div>
+  </section>
+  </div><!-- /.analytics-container -->
+
+  <script>
+    // ── 颜色（从 CSS 变量读取）──
+    const cs = getComputedStyle(document.documentElement);
+    const text2 = cs.getPropertyValue('--text2').trim() || '#8a8578';
+    const textMain = cs.getPropertyValue('--text').trim() || '#3b3b3b';
+    const border = cs.getPropertyValue('--border').trim() || '#e6dfd4';
+    const accent = cs.getPropertyValue('--accent').trim() || '#9d2933';
+    const success = cs.getPropertyValue('--success').trim() || '#48929b';
+    const card = cs.getPropertyValue('--card').trim() || '#fffcf5';
+    const bg = cs.getPropertyValue('--bg').trim() || '#f7f4ef';
+
+    const PIE_COLORS = ['#9d2933','#48929b','#d9b611','#4a4266','#519a73','#e4c6d0','#177cb0','#ffc773','#b35c30','#6b5b95','#88b04b','#f7cac9'];
+    const HOLDING_COLORS = ['#48929b','#519a73','#d9b611','#8a8578'];
+
+    let currentPeriod = 'all';
+    let currentMode = 'amount';
+    let analyticsData = null;
+    let categoryChart = null;
+
+    // ── 数据加载 ──
+    async function loadAnalytics(period) {
+      const res = await fetch(`/api/analytics?period=${period}`);
+      analyticsData = await res.json();
+      renderAll();
+    }
+
+    function renderAll() {
+      if (!analyticsData) return;
+      renderDonut();
+      renderCatCards();
+      renderHolding();
+      renderSubSection();
+      renderSpending();
+      renderTrendChart();
+      renderRankingChart();
+    }
+
+    // ── 环形图 ──
+    function renderDonut() {
+      const data = analyticsData;
+      const useAmount = currentMode === 'amount';
+      const stats = useAmount ? data.category_stats : data.category_count;
+      const labels = Object.keys(stats);
+      const values = Object.values(stats);
+      const total = values.reduce((a, b) => a + b, 0);
+
+      // 顶部分类提示
+      const topCat = data.category_details[0];
+      document.getElementById('topCategory').textContent =
+        topCat ? `金额最高分类 ${topCat.category}` : '';
+
+      // 中心文字
+      document.querySelector('.donut-label').textContent = useAmount ? '按金额' : '按数量';
+      document.getElementById('donutTotal').textContent =
+        useAmount ? `¥${total.toLocaleString('zh-CN', {minimumFractionDigits: 2})}` : `${total} 件`;
+
+      if (categoryChart) categoryChart.destroy();
+      categoryChart = new Chart(document.getElementById('categoryChart'), {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: values,
+            backgroundColor: PIE_COLORS.slice(0, labels.length),
+            borderWidth: 3,
+            borderColor: card,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          cutout: '55%',
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              enabled: false,
+              external: function(context) {
+                let tip = document.getElementById('chartjs-tooltip');
+                if (!tip) {
+                  tip = document.createElement('div');
+                  tip.id = 'chartjs-tooltip';
+                  document.body.appendChild(tip);
+                }
+                const model = context.tooltip;
+                if (model.opacity === 0) { tip.style.opacity = 0; return; }
+                // 只用 callbacks.label 的输出（已包含分类名）
+                const lines = [];
+                if (model.body) {
+                  model.body.forEach(b => b.lines.forEach(l => lines.push(l)));
+                }
+                tip.innerHTML = lines.map(l => '<div>' + l + '</div>').join('');
+                tip.style.opacity = 1;
+                const pos = context.chart.canvas.getBoundingClientRect();
+                const scrollX = window.scrollX;
+                const scrollY = window.scrollY;
+                tip.style.position = 'absolute';
+                tip.style.pointerEvents = 'none';
+                // 先显示才能拿宽度
+                tip.style.visibility = 'hidden';
+                tip.style.left = '0px';
+                tip.style.top = '0px';
+                const tipW = tip.offsetWidth;
+                const tipH = tip.offsetHeight;
+                const caretAbsX = pos.left + scrollX + model.caretX;
+                const caretAbsY = pos.top + scrollY + model.caretY;
+                let x, arrow;
+                // 默认右侧，超出则左侧
+                if (caretAbsX + 12 + tipW > scrollX + window.innerWidth - 8) {
+                  x = caretAbsX - tipW - 12;
+                  arrow = 'right';
+                } else {
+                  x = caretAbsX + 12;
+                  arrow = 'left';
+                }
+                let y = caretAbsY - tipH / 2;
+                if (y < scrollY + 4) y = scrollY + 4;
+                if (y + tipH > scrollY + window.innerHeight - 4) y = scrollY + window.innerHeight - tipH - 4;
+                tip.className = 'chart-tip arrow-' + arrow;
+                tip.style.left = x + 'px';
+                tip.style.top = y + 'px';
+                tip.style.visibility = 'visible';
+              },
+              callbacks: {
+                label: (ctx) => {
+                  const v = ctx.raw;
+                  const pct = ((v / total) * 100).toFixed(1);
+                  return useAmount
+                    ? `${ctx.label}: ¥${v.toLocaleString('zh-CN')} (${pct}%)`
+                    : `${ctx.label}: ${v} 件 (${pct}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // ── 分类卡片 ──
+    function renderCatCards() {
+      const details = analyticsData.category_details;
+      const useAmount = currentMode === 'amount';
+      const container = document.getElementById('catCards');
+      container.innerHTML = details.map((d, i) => `
+        <div class="cat-card">
+          <span class="cat-dot" style="background:${PIE_COLORS[i % PIE_COLORS.length]}"></span>
+          <span class="cat-name">${d.category}</span>
+          <span class="cat-value">${useAmount ? '¥' + d.amount.toLocaleString('zh-CN') : d.count + ' 件'}</span>
+          <span class="cat-pct">${d.percent}%</span>
+        </div>
+      `).join('');
+    }
+
+    // ── 持有区间（图表 + 2x2 网格）──
+    let holdingChart = null;
+    function renderHolding() {
+      const data = analyticsData.holding_distribution;
+      const container = document.getElementById('holdingGrid');
+      if (!data || data.length === 0) {
+        container.innerHTML = '<p class="empty-hint">暂无数据</p>';
+        return;
+      }
+
+      // 横向条形图
+      if (holdingChart) holdingChart.destroy();
+      holdingChart = new Chart(document.getElementById('holdingChart'), {
+        type: 'bar',
+        data: {
+          labels: data.map(h => h.label),
+          datasets: [{
+            label: '件数',
+            data: data.map(h => h.count),
+            backgroundColor: HOLDING_COLORS,
+            borderRadius: 6,
+            barThickness: 24,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          indexAxis: 'y',
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => `${ctx.raw} 件 (${data[ctx.dataIndex].percent}%)`
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: text2, stepSize: 1 },
+              grid: { color: border },
+              beginAtZero: true,
+            },
+            y: {
+              ticks: { color: textMain },
+              grid: { display: false },
+            }
+          }
+        }
+      });
+
+      // 2x2 网格卡片
+      container.innerHTML = data.map((h, i) => `
+        <div class="holding-card">
+          <span class="holding-dot" style="background:${HOLDING_COLORS[i % HOLDING_COLORS.length]}"></span>
+          <span class="holding-label">${h.label}</span>
+          <span class="holding-count">${h.count} 件</span>
+          <span class="holding-pct">${h.percent}%</span>
+        </div>
+      `).join('');
+    }
+
+    // ── 订阅服务分析 ──
+    function renderSubSection() {
+      const subs = analyticsData.subscriptions || [];
+      const section = document.getElementById('subSection');
+      if (!subs.length) {
+        section.style.display = 'none';
+        return;
+      }
+      section.style.display = 'block';
+      const subMonthly = analyticsData.subscription_monthly || 0;
+      const subYearly = analyticsData.subscription_yearly || 0;
+      document.getElementById('subTotalInfo').textContent = `${subs.length} 项 · 月费 ¥${subMonthly.toFixed(2)} · 年费 ¥${subYearly.toFixed(2)}`;
+
+      const container = document.getElementById('subSummaryCards');
+      container.innerHTML = `
+        <div class="sub-card">
+          <div class="sub-card-label">月费合计</div>
+          <div class="sub-card-value">¥${subMonthly.toFixed(2)}</div>
+        </div>
+        <div class="sub-card">
+          <div class="sub-card-label">年费合计</div>
+          <div class="sub-card-value">¥${subYearly.toFixed(2)}</div>
+        </div>
+        <div class="sub-card">
+          <div class="sub-card-label">日均成本</div>
+          <div class="sub-card-value">¥${(subMonthly / 30).toFixed(2)}</div>
+        </div>
+      `;
+
+      const list = document.getElementById('subList');
+      list.innerHTML = subs.map(s => `
+        <div class="spending-item">
+          <span class="spending-rank sub-rank">🧾</span>
+          <div class="spending-info">
+            <span class="spending-name">${s.name}</span>
+            <span class="spending-meta">${s.billing_cycle} · 月费 ¥${s.monthly_cost.toFixed(2)} · 开始 ${s.start_date}</span>
+          </div>
+          <span class="spending-price">¥${s.price_per_cycle.toFixed(2)}/${s.billing_cycle.replace('付','')}</span>
+        </div>
+      `).join('');
+    }
+
+    // ── 消费榜单 ──
+    function renderSpending() {
+      const data = analyticsData.spending_ranking;
+      const container = document.getElementById('spendingList');
+      if (!data || data.length === 0) {
+        container.innerHTML = '<p class="empty-hint">暂无数据</p>';
+        return;
+      }
+      container.innerHTML = data.map((s, i) => `
+        <div class="spending-item${s.is_subscription ? ' spending-sub' : ''}">
+          <span class="spending-rank">${i + 1}</span>
+          <div class="spending-info">
+            <span class="spending-name">${s.name}${s.is_subscription ? ' 🧾' : ''}</span>
+            <span class="spending-meta">${s.category} · ${s.is_subscription ? '年费' : s.purchase_date}</span>
+          </div>
+          <span class="spending-price">¥${s.price.toLocaleString('zh-CN')}${s.is_subscription ? '/年' : ''}</span>
+        </div>
+      `).join('');
+    }
+
+    // ── 月度趋势 ──
+    let trendChart = null;
+    function renderTrendChart() {
+      const data = analyticsData;
+      if (!data.monthly_trend || data.monthly_trend.length === 0) return;
+      if (trendChart) trendChart.destroy();
+      trendChart = new Chart(document.getElementById('trendChart'), {
+        type: 'line',
+        data: {
+          labels: data.monthly_trend.map(m => m[0]),
+          datasets: [{
+            label: '消费 (元)',
+            data: data.monthly_trend.map(m => m[1]),
+            borderColor: accent,
+            backgroundColor: accent + '14',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 4,
+            pointBackgroundColor: accent,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: text2 } } },
+          scales: {
+            x: { ticks: { color: text2 }, grid: { color: border } },
+            y: { ticks: { color: text2 }, grid: { color: border } }
+          }
+        }
+      });
+    }
+
+    // ── 日均成本排行 ──
+    let rankingChart = null;
+    function renderRankingChart() {
+      const data = analyticsData;
+      if (!data.daily_cost_ranking || data.daily_cost_ranking.length === 0) return;
+      if (rankingChart) rankingChart.destroy();
+      const colors = data.daily_cost_ranking.map(r => r.is_subscription ? '#48929b' : accent);
+      rankingChart = new Chart(document.getElementById('rankingChart'), {
+        type: 'bar',
+        data: {
+          labels: data.daily_cost_ranking.map(r => r.name + (r.is_subscription ? ' 🧾' : '')),
+          datasets: [{
+            label: '日均成本 (元/天)',
+            data: data.daily_cost_ranking.map(r => r.daily_cost),
+            backgroundColor: colors,
+            borderRadius: 6,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          indexAxis: 'y',
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: text2 }, grid: { color: border } },
+            y: { ticks: { color: textMain }, grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    // ── 事件绑定 ──
+    document.getElementById('periodTabs').addEventListener('click', (e) => {
+      if (e.target.tagName !== 'BUTTON') return;
+      document.querySelectorAll('#periodTabs button').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      currentPeriod = e.target.dataset.period;
+      loadAnalytics(currentPeriod);
+    });
+
+    document.querySelector('.chart-toggle').addEventListener('click', (e) => {
+      if (e.target.tagName !== 'BUTTON') return;
+      document.querySelectorAll('.chart-toggle button').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      currentMode = e.target.dataset.mode;
+      renderDonut();
+      renderCatCards();
+    });
+
+    // ── 初始加载 ──
+    loadAnalytics('all');
+  </script>
+
+  <script>
+    fetch('/api/auth/check').then(r=>r.json()).then(d=>{
+      if(d.is_admin) document.querySelectorAll('.nav-admin-link').forEach(el=>el.style.display='');
+    });
+  </script>
+</body>
+</html>

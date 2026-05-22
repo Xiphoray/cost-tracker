@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理后台 — 白驹过隙</title>
+  <link rel="stylesheet" href="/css/style.css?v=27">
+  <style>
+    .admin-container { max-width: 800px; margin: 0 auto; padding: 24px 20px; }
+    .admin-header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+    .admin-header h2 { margin: 0; font-size: 20px; color: var(--text); }
+    .admin-badge { background: var(--accent); color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+    .user-table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+    .user-table th { background: var(--bg); color: var(--text2); font-size: 12px; font-weight: 600; text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+    .user-table td { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--text); }
+    .user-table tr:last-child td { border-bottom: none; }
+    .user-table tr:hover td { background: var(--bg); }
+    .user-name { font-weight: 600; }
+    .user-admin-tag { background: var(--accent-light); color: var(--accent); font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-left: 6px; }
+    .user-stat { color: var(--text2); font-size: 13px; }
+    .user-actions { display: flex; gap: 8px; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border); background: var(--card); color: var(--text); transition: all 0.2s; }
+    .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-sm.danger { color: var(--accent); border-color: var(--accent); }
+    .btn-sm.danger:hover { background: var(--accent); color: #fff; }
+    .btn-sm.promote { color: var(--success); border-color: var(--success); }
+    .btn-sm.promote:hover { background: var(--success); color: #fff; }
+    .empty-state { text-align: center; padding: 40px; color: var(--text2); }
+    .user-count { color: var(--text2); font-size: 13px; margin-bottom: 16px; }
+    .confirm-overlay { display: none; position: fixed; inset: 0; background: rgba(60,50,30,.3); backdrop-filter: blur(4px); z-index: 200; align-items: center; justify-content: center; }
+    .confirm-overlay.open { display: flex; }
+    .confirm-box { background: var(--card); border-radius: 12px; padding: 24px; max-width: 360px; width: 90%; text-align: center; box-shadow: 0 12px 40px rgba(60,50,30,.15); }
+    .confirm-box p { margin: 0 0 20px; font-size: 15px; color: var(--text); }
+    .confirm-box .btns { display: flex; gap: 12px; justify-content: center; }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <span class="logo">⏳ 白驹过隙</span>
+    <a href="/">首页</a>
+    <a href="/analytics">分析</a>
+    <a href="/settings">设置</a>
+    <span class="nav-spacer"></span>
+    <a href="/admin" class="active nav-admin-link">管理</a>
+    <button class="nav-logout" onclick="fetch('/api/logout',{method:'POST'}).then(()=>window.location.href='/login')">退出</button>
+  </nav>
+
+  <div class="admin-container">
+    <div class="admin-header">
+      <h2>👥 用户管理</h2>
+      <span class="admin-badge">管理员</span>
+    </div>
+    <div class="user-count" id="userCount"></div>
+    <table class="user-table">
+      <thead>
+        <tr>
+          <th>用户名</th>
+          <th>物品</th>
+          <th>订阅</th>
+          <th>会话</th>
+          <th>注册时间</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="userTableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="confirm-overlay" id="confirmOverlay">
+    <div class="confirm-box">
+      <p id="confirmMsg"></p>
+      <div class="btns">
+        <button class="btn-sm danger" id="confirmYes">确认删除</button>
+        <button class="btn-sm" onclick="closeConfirm()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentUser = '';
+    let users = [];
+
+    async function init() {
+      // 检查管理员权限
+      const auth = await fetch('/api/auth/check').then(r => r.json());
+      if (!auth.is_admin) {
+        document.querySelector('.admin-container').innerHTML = '<div class="empty-state">⛔ 无管理员权限</div>';
+        return;
+      }
+      currentUser = auth.username;
+      loadUsers();
+    }
+
+    async function loadUsers() {
+      users = await fetch('/api/admin/users').then(r => r.json());
+      document.getElementById('userCount').textContent = `共 ${users.length} 个用户`;
+      const tbody = document.getElementById('userTableBody');
+      tbody.innerHTML = users.map(u => `
+        <tr>
+          <td>
+            <span class="user-name">${u.username}</span>
+            ${u.is_admin ? '<span class="user-admin-tag">管理员</span>' : ''}
+            ${u.username === currentUser ? '<span class="user-admin-tag" style="background:var(--bg);color:var(--text2)">当前</span>' : ''}
+          </td>
+          <td class="user-stat">${u.item_count}</td>
+          <td class="user-stat">${u.sub_count}</td>
+          <td class="user-stat">${u.active_sessions}/${u.total_sessions}</td>
+          <td class="user-stat">${u.created_at ? u.created_at.slice(0, 10) : '-'}</td>
+          <td>
+            <div class="user-actions">
+              ${u.username !== currentUser ? `
+                ${!u.is_admin
+                  ? `<button class="btn-sm promote" onclick="promote('${u.username}')">设为管理员</button>`
+                  : `<button class="btn-sm" onclick="demote('${u.username}')">撤销管理员</button>`
+                }
+                <button class="btn-sm" onclick="confirmReset('${u.username}')">重置密码</button>
+                <button class="btn-sm danger" onclick="confirmDelete('${u.username}', ${u.item_count + u.sub_count})">删除</button>
+              ` : '<span class="user-stat">—</span>'}
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function promote(username) {
+      await fetch(`/api/admin/users/${username}/promote`, { method: 'POST' });
+      loadUsers();
+    }
+
+    async function demote(username) {
+      await fetch(`/api/admin/users/${username}/demote`, { method: 'POST' });
+      loadUsers();
+    }
+
+    function closeConfirm() {
+      document.getElementById('confirmOverlay').classList.remove('open');
+    }
+
+    function confirmReset(username) {
+      document.getElementById('confirmMsg').innerHTML = `确定将 <strong>${username}</strong> 的密码重置为默认密码？<br>该用户将被强制重新登录。`;
+      document.getElementById('confirmYes').textContent = '确认重置';
+      document.getElementById('confirmYes').onclick = () => doReset(username);
+      document.getElementById('confirmOverlay').classList.add('open');
+    }
+
+    function confirmDelete(username, dataCount) {
+      const msg = dataCount > 0
+        ? `确定删除用户 <strong>${username}</strong>？<br>将同时删除 ${dataCount} 条数据，此操作不可撤销。`
+        : `确定删除用户 <strong>${username}</strong>？`;
+      document.getElementById('confirmMsg').innerHTML = msg;
+      document.getElementById('confirmYes').textContent = '确认删除';
+      document.getElementById('confirmYes').onclick = () => doDelete(username);
+    }
+
+    async function doReset(username) {
+      closeConfirm();
+      try {
+        const res = await fetch(`/api/admin/users/${username}/reset-password`, { method: 'POST' });
+        if (res.ok) {
+          alert(`已重置 ${username} 的密码，该用户会话已清除，需重新登录。`);
+        } else {
+          const err = await res.json().catch(() => ({}));
+          alert(`重置失败：${err.detail || res.status}`);
+        }
+      } catch (e) {
+        alert(`重置失败：${e.message}`);
+      }
+      loadUsers();
+    }
+
+    async function doDelete(username) {
+      closeConfirm();
+      await fetch(`/api/admin/users/${username}`, { method: 'DELETE' });
+      loadUsers();
+    }
+
+    init();
+  </script>
+</body>
+</html>
