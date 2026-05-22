@@ -20,7 +20,7 @@ logger = logging.getLogger("cost-tracker")
 
 # ── 公开路径 ──
 PUBLIC_PATHS = {'/login', '/api/login', '/api/register'}
-PUBLIC_PREFIXES = ('/css/', '/js/', '/vendor/', '/favicon')
+PUBLIC_PREFIXES = ('/css/', '/js/', '/vendor/', '/favicon', '/manifest.json', '/sw.js', '/icons/')
 
 
 def get_current_user(request: Request) -> str:

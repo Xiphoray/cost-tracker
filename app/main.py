@@ -45,6 +45,17 @@ register_page_routes(app)
 app.mount("/css", StaticFiles(directory=str(FRONTEND_DIR / "css")), name="css")
 app.mount("/js", StaticFiles(directory=str(FRONTEND_DIR / "js")), name="js")
 app.mount("/vendor", StaticFiles(directory=str(FRONTEND_DIR / "vendor")), name="vendor")
+app.mount("/icons", StaticFiles(directory=str(FRONTEND_DIR / "icons")), name="icons")
+
+
+@app.get("/manifest.json")
+def serve_manifest():
+    return FileResponse(str(FRONTEND_DIR / "manifest.json"), media_type="application/manifest+json")
+
+
+@app.get("/sw.js")
+def serve_sw():
+    return FileResponse(str(FRONTEND_DIR / "sw.js"), media_type="application/javascript")
 
 
 @app.get("/{path:path}", response_class=HTMLResponse)

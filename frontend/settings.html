@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>设置 — 白驹过隙</title>
   <link rel="stylesheet" href="/css/style.css?v=27">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#e94560">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="白驹过隙">
+  <link rel="apple-touch-icon" href="/icons/icon-192.svg">
+
 </head>
 <body>
   <nav class="navbar">
@@ -383,5 +390,11 @@ note 先写一句对物品的评价，再补充必要信息，不要写"已下�
       if(d.is_admin) document.querySelectorAll('.nav-admin-link').forEach(el=>el.style.display='');
     });
   </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  </script>
+
 </body>
 </html>

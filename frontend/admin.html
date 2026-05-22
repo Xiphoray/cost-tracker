@@ -33,6 +33,12 @@
     .confirm-box p { margin: 0 0 20px; font-size: 15px; color: var(--text); }
     .confirm-box .btns { display: flex; gap: 12px; justify-content: center; }
   </style>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#e94560">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="白驹过隙">
+  <link rel="apple-touch-icon" href="/icons/icon-192.svg">
 </head>
 <body>
   <nav class="navbar">
@@ -176,5 +182,11 @@
 
     init();
   </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  </script>
+
 </body>
 </html>

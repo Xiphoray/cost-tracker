@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#16213e"/>
+    </linearGradient>
+  </defs>
+  <!-- 背景圆 -->
+  <circle cx="256" cy="256" r="256" fill="url(#bg)"/>
+  <!-- 装饰环 -->
+  <circle cx="256" cy="256" r="230" fill="none" stroke="#e94560" stroke-width="4" opacity="0.3"/>
+  <!-- 奔马轮廓 -->
+  <g transform="translate(256,240) scale(1.2)" fill="none" stroke="#e94560" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <!-- 身体 -->
+    <path d="M-60,20 Q-40,-30 0,-40 Q40,-50 70,-20 Q80,-10 70,10 Q60,25 40,30"/>
+    <!-- 头部 -->
+    <path d="M-60,20 Q-70,10 -75,-5 Q-78,-15 -70,-25 Q-60,-35 -50,-30 Q-45,-25 -48,-15"/>
+    <!-- 耳朵 -->
+    <path d="M-70,-25 L-75,-40 L-65,-30"/>
+    <!-- 鬃毛 -->
+    <path d="M-55,-25 Q-40,-45 -20,-50 Q-10,-48 -15,-35"/>
+    <path d="M-45,-20 Q-30,-40 -10,-45 Q0,-42 -5,-30"/>
+    <!-- 前腿 -->
+    <path d="M-20,25 L-30,60 Q-32,70 -25,70"/>
+    <path d="M0,28 L-8,65 Q-10,75 -3,73"/>
+    <!-- 后腿 -->
+    <path d="M50,25 L60,55 Q62,65 55,65"/>
+    <path d="M35,28 L42,60 Q44,70 37,68"/>
+    <!-- 尾巴 -->
+    <path d="M70,10 Q90,0 100,-15 Q105,-25 95,-30"/>
+    <path d="M70,10 Q85,-5 95,-20"/>
+  </g>
+  <!-- 底部文字 -->
+  <text x="256" y="420" text-anchor="middle" font-family="sans-serif" font-size="42" font-weight="bold" fill="#e94560" letter-spacing="8">白驹过隙</text>
+</svg>
