@@ -15,8 +15,14 @@ from .auth import get_current_user
 logger = logging.getLogger("cost-tracker")
 
 # 订阅表查询语句
-SUB_SELECT_ALL = "SELECT id, name, start_date, billing_cycle, cycle_months, price_per_cycle, auto_renew, created_at FROM subscriptions WHERE username=? ORDER BY created_at DESC"
-SUB_SELECT_BY_ID = "SELECT id, name, start_date, billing_cycle, cycle_months, price_per_cycle, auto_renew, created_at FROM subscriptions WHERE id=? AND username=?" 
+SUB_SELECT_ALL = (
+    "SELECT id, name, start_date, billing_cycle, cycle_months, price_per_cycle, auto_renew, created_at "
+    "FROM subscriptions WHERE username=? ORDER BY created_at DESC"
+)
+SUB_SELECT_BY_ID = (
+    "SELECT id, name, start_date, billing_cycle, cycle_months, price_per_cycle, auto_renew, created_at "
+    "FROM subscriptions WHERE id=? AND username=?"
+)
 
 
 def _get_subscriptions(request: Request):
@@ -38,8 +44,18 @@ def _create_subscription(request: Request, sub: SubscriptionCreate):
     conn = get_db()
     try:
         cur = conn.execute(
-            "INSERT INTO subscriptions (name, start_date, billing_cycle, cycle_months, price_per_cycle, auto_renew, username) VALUES (?,?,?,?,?,?,?)",
-            (sub.name, sub.start_date, sub.billing_cycle, get_cycle_months(sub.billing_cycle), sub.price_per_cycle, 1 if sub.auto_renew else 0, user),
+            "INSERT INTO subscriptions "
+            "(name, start_date, billing_cycle, cycle_months, price_per_cycle, auto_renew, username) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (
+                sub.name,
+                sub.start_date,
+                sub.billing_cycle,
+                get_cycle_months(sub.billing_cycle),
+                sub.price_per_cycle,
+                1 if sub.auto_renew else 0,
+                user,
+            ),
         )
         conn.commit()
         row = conn.execute(SUB_SELECT_BY_ID, (cur.lastrowid, user)).fetchone()
@@ -61,8 +77,18 @@ def _update_subscription(sub_id: int, sub: SubscriptionUpdate, request: Request)
         sub_dict.update(updates)
         sub_dict["cycle_months"] = get_cycle_months(sub_dict["billing_cycle"])
         conn.execute(
-            "UPDATE subscriptions SET name=?, start_date=?, billing_cycle=?, cycle_months=?, price_per_cycle=?, auto_renew=? WHERE id=? AND username=?",
-            (sub_dict["name"], sub_dict["start_date"], sub_dict["billing_cycle"], sub_dict["cycle_months"], sub_dict["price_per_cycle"], 1 if sub_dict.get("auto_renew") else 0, sub_id, user),
+            "UPDATE subscriptions SET name=?, start_date=?, billing_cycle=?, cycle_months=?, "
+            "price_per_cycle=?, auto_renew=? WHERE id=? AND username=?",
+            (
+                sub_dict["name"],
+                sub_dict["start_date"],
+                sub_dict["billing_cycle"],
+                sub_dict["cycle_months"],
+                sub_dict["price_per_cycle"],
+                1 if sub_dict.get("auto_renew") else 0,
+                sub_id,
+                user,
+            ),
         )
         conn.commit()
         row = conn.execute(SUB_SELECT_BY_ID, (sub_id, user)).fetchone()
@@ -83,7 +109,10 @@ def _renew_subscription(sub_id: int, request: Request):
         start = datetime.strptime(sub_dict["start_date"], "%Y-%m-%d").date()
         months = sub_dict["cycle_months"]
         new_start = start + relativedelta(months=months)
-        conn.execute("UPDATE subscriptions SET start_date=?, auto_renew=1 WHERE id=? AND username=?", (new_start.isoformat(), sub_id, user))
+        conn.execute(
+            "UPDATE subscriptions SET start_date=?, auto_renew=1 WHERE id=? AND username=?",
+            (new_start.isoformat(), sub_id, user),
+        )
         conn.commit()
         updated = conn.execute(SUB_SELECT_BY_ID, (sub_id, user)).fetchone()
         return subscription_to_dict(updated)

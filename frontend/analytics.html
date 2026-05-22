@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>数据洞察 — 白驹过隙</title>
   <script src="/vendor/chart.umd.min.js"></script>
-  <link rel="stylesheet" href="/css/style.css?v=27">
+  <link rel="stylesheet" href="/css/style.css?v=28">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#e94560">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="白驹过隙">
@@ -74,6 +75,14 @@
       <canvas id="holdingChart"></canvas>
     </div>
     <div class="holding-grid" id="holdingGrid"></div>
+    <div class="longest-held" id="longestHeldList"></div>
+    <div class="longest-held-toggle-wrap">
+      <span class="longest-held-toggle-label">含已退役</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="includeRetiredCheck" onchange="toggleRetiredFilter()">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
   </section>
 
   <!-- ── 订阅服务分析 ── -->
@@ -128,6 +137,14 @@
   </div><!-- /.analytics-container -->
 
   <script>
+    // ── 工具函数 ──
+    function escapeHtml(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
     // ── 颜色（从 CSS 变量读取）──
     const cs = getComputedStyle(document.documentElement);
     const text2 = cs.getPropertyValue('--text2').trim() || '#8a8578';
@@ -147,10 +164,18 @@
     let categoryChart = null;
 
     // ── 数据加载 ──
-    async function loadAnalytics(period) {
-      const res = await fetch(`/api/analytics?period=${period}`);
+    async function loadAnalytics(period, includeRetired = false) {
+      currentPeriod = period;
+      const retiredParam = includeRetired ? '&include_retired=true' : '';
+      const res = await fetch(`/api/analytics?period=${period}${retiredParam}`);
       analyticsData = await res.json();
       renderAll();
+    }
+
+    // 切换退役物品过滤
+    function toggleRetiredFilter() {
+      const includeRetired = document.getElementById('includeRetiredCheck').checked;
+      loadAnalytics(currentPeriod, includeRetired);
     }
 
     function renderAll() {
@@ -338,6 +363,29 @@
           <span class="holding-pct">${h.percent}%</span>
         </div>
       `).join('');
+
+      // 持有时间最长 Top 5
+      const longest = analyticsData.longest_held || [];
+      const longestEl = document.getElementById('longestHeldList');
+      if (longest.length) {
+        longestEl.innerHTML = `
+          <div class="longest-held-title">🏆 持有时间最长 Top 5</div>
+          <div class="longest-held-items">
+            ${longest.map((item, i) => `
+              <div class="longest-held-item">
+                <span class="longest-held-rank">${i + 1}</span>
+                <div class="longest-held-info">
+                  <span class="longest-held-name">${escapeHtml(item.name)}</span>
+                  <span class="longest-held-meta">${item.category} · ${item.purchase_date} 购入</span>
+                </div>
+                <span class="longest-held-days">${item.days} 天</span>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      } else {
+        longestEl.innerHTML = '';
+      }
     }
 
     // ── 订阅服务分析 ──
@@ -472,7 +520,8 @@
       document.querySelectorAll('#periodTabs button').forEach(b => b.classList.remove('active'));
       e.target.classList.add('active');
       currentPeriod = e.target.dataset.period;
-      loadAnalytics(currentPeriod);
+      const includeRetired = document.getElementById('includeRetiredCheck').checked;
+      loadAnalytics(currentPeriod, includeRetired);
     });
 
     document.querySelector('.chart-toggle').addEventListener('click', (e) => {

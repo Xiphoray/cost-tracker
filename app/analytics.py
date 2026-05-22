@@ -15,8 +15,14 @@ from .auth import get_current_user
 logger = logging.getLogger("cost-tracker")
 
 # 通用查询语句
-ITEM_SELECT = "SELECT id, name, price, purchase_date, category, status, note, image_url, retirement_date, warranty_date, calc_method, created_at FROM items WHERE username=?"
-SUB_SELECT = "SELECT id, name, start_date, billing_cycle, cycle_months, price_per_cycle, auto_renew, created_at FROM subscriptions WHERE username=?" 
+ITEM_SELECT = (
+    "SELECT id, name, price, purchase_date, category, status, note, image_url, "
+    "retirement_date, warranty_date, calc_method, created_at FROM items WHERE username=?"
+)
+SUB_SELECT = (
+    "SELECT id, name, start_date, billing_cycle, cycle_months, price_per_cycle, auto_renew, created_at "
+    "FROM subscriptions WHERE username=?"
+)
 
 
 # ── 分析子函数 ──
@@ -93,6 +99,29 @@ def _calculate_holding_distribution(items: list) -> list:
     ]
 
 
+def _calculate_longest_held(items: list, include_retired: bool = False) -> list:
+    """计算持有时间最长的 Top 5 物品"""
+    today = date.today().isoformat()
+    ranked = []
+    for item in items:
+        # 默认只统计在用物品（status非在用 或 有退役日期且已过期）
+        if not include_retired:
+            if item["status"] != "在用":
+                continue
+            retire = item["retirement_date"]
+            if retire and retire <= today:
+                continue
+        days = calc_days(item["purchase_date"])
+        ranked.append({
+            "name": item["name"],
+            "purchase_date": item["purchase_date"],
+            "days": days,
+            "category": item["category"],
+        })
+    ranked.sort(key=lambda x: x["days"], reverse=True)
+    return ranked[:5]
+
+
 def _calculate_price_ranking(items: list) -> list:
     """计算消费榜单"""
     price_ranking = [
@@ -121,20 +150,25 @@ def _calculate_category_details(cat_stats: dict, cat_count: dict, subs_yearly: f
     return details
 
 
-def _calculate_stats(items, subs, user):
-    """计算统计数据"""
+def _calculate_subscription_summary(subs):
+    """计算订阅费用汇总"""
     subs_cost = [subscription_cost(dict(s)) for s in subs]
     sub_monthly = sum(cost["monthly_cost"] for cost in subs_cost)
     sub_daily = sum(cost["daily_cost"] for cost in subs_cost)
+    return subs_cost, sub_monthly, sub_daily
 
-    if not items:
-        return {"total_count": 0, "total_value": 0, "avg_daily_cost": 0, "today_cost": round(sub_daily, 2), "month_spending": round(sub_monthly, 2), "subscription_count": len(subs_cost), "subscription_monthly": round(sub_monthly, 2)}
 
+def _filter_active_items(items, user):
+    """根据设置过滤退役物品"""
     exclude = get_setting("exclude_retired", "false", user) == "true"
-    if exclude:
-        today_str = date.today().isoformat()
-        items = [item for item in items if not item["retirement_date"] or item["retirement_date"] > today_str]
+    if not exclude:
+        return items
+    today_str = date.today().isoformat()
+    return [item for item in items if not item["retirement_date"] or item["retirement_date"] > today_str]
 
+
+def _calculate_item_financials(items, sub_monthly, sub_daily):
+    """计算物品维度汇总指标"""
     today = date.today()
     total_value = sum(item["price"] for item in items)
     daily_costs = []
@@ -145,10 +179,29 @@ def _calculate_stats(items, subs, user):
         purchase_date = datetime.strptime(item["purchase_date"], "%Y-%m-%d").date()
         if purchase_date.month == today.month and purchase_date.year == today.year:
             month_spending += item["price"]
-
     month_spending += sub_monthly
     avg_daily_cost = (sum(daily_costs) + sub_daily) / len(daily_costs) if daily_costs else sub_daily
     today_cost = round(sum(daily_costs) + sub_daily, 2)
+    return total_value, daily_costs, avg_daily_cost, today_cost, month_spending
+
+
+def _calculate_stats(items, subs, user):
+    """计算统计数据"""
+    subs_cost, sub_monthly, sub_daily = _calculate_subscription_summary(subs)
+
+    if not items:
+        return {
+            "total_count": 0,
+            "total_value": 0,
+            "avg_daily_cost": 0,
+            "today_cost": round(sub_daily, 2),
+            "month_spending": round(sub_monthly, 2),
+            "subscription_count": len(subs_cost),
+            "subscription_monthly": round(sub_monthly, 2),
+        }
+
+    items = _filter_active_items(items, user)
+    total_value, _, avg_daily_cost, today_cost, month_spending = _calculate_item_financials(items, sub_monthly, sub_daily)
 
     return {
         "total_count": len(items),
@@ -161,36 +214,53 @@ def _calculate_stats(items, subs, user):
     }
 
 
-def _merge_subscription_analytics(items, subs, period):
+def _build_subscription_views(subs_list):
+    """构建订阅相关的排行榜视图"""
+    sub_monthly = sum(s["monthly_cost"] for s in subs_list)
+    sub_yearly = sub_monthly * 12
+    sub_daily_ranking = [
+        {"name": s["name"], "daily_cost": s["daily_cost"], "is_subscription": True}
+        for s in subs_list
+    ]
+    sub_spending = [
+        {
+            "name": s["name"],
+            "price": round(s["monthly_cost"] * 12, 2),
+            "category": "订阅服务",
+            "purchase_date": s["start_date"],
+            "is_subscription": True,
+        }
+        for s in subs_list
+    ]
+    return sub_monthly, sub_yearly, sub_daily_ranking, sub_spending
+
+
+def _merge_subscription_analytics(items, subs, period, include_retired=False):
     """合并订阅和物品的分析数据"""
     filtered = _filter_items_by_period(items, period)
     cat_stats, cat_count = _calculate_category_stats(filtered)
     monthly_trend = _calculate_monthly_trend(filtered)
     daily_ranking = _calculate_daily_ranking(filtered)
     holding_distribution = _calculate_holding_distribution(filtered)
+    longest_held = _calculate_longest_held(filtered, include_retired)
     price_ranking = _calculate_price_ranking(filtered)
 
     subs_list = [subscription_to_dict(s) for s in subs]
-    sub_monthly = sum(s["monthly_cost"] for s in subs_list)
-    sub_yearly = sub_monthly * 12
-
-    sub_daily_ranking = [{"name": s["name"], "daily_cost": s["daily_cost"], "is_subscription": True} for s in subs_list]
-    all_daily_ranking = (daily_ranking + sub_daily_ranking)[:10]
-
-    sub_spending = [{"name": s["name"], "price": round(s["monthly_cost"] * 12, 2), "category": "订阅服务", "purchase_date": s["start_date"], "is_subscription": True} for s in subs_list]
-    all_spending = (price_ranking + sub_spending)[:10]
+    sub_monthly, sub_yearly, sub_daily_ranking, sub_spending = _build_subscription_views(subs_list)
 
     category_details = _calculate_category_details(cat_stats, cat_count, sub_yearly)
+    monthly_count = sorted(_calculate_monthly_trend(items), reverse=True)[:12]
 
     return {
         "category_stats": cat_stats,
         "category_count": cat_count,
         "category_details": category_details,
         "monthly_trend": monthly_trend,
-        "daily_cost_ranking": all_daily_ranking,
-        "monthly_count": sorted(_calculate_monthly_trend(items), reverse=True)[:12],
+        "daily_cost_ranking": (daily_ranking + sub_daily_ranking)[:10],
+        "monthly_count": monthly_count,
         "holding_distribution": holding_distribution,
-        "spending_ranking": all_spending,
+        "longest_held": longest_held,
+        "spending_ranking": (price_ranking + sub_spending)[:10],
         "total_price": round(sum(cat_stats.values()) + sub_yearly, 2),
         "period": period,
         "subscription_monthly": round(sub_monthly, 2),
@@ -212,7 +282,7 @@ def _get_stats(request: Request):
     return _calculate_stats(items, subs, user)
 
 
-def _get_analytics(request: Request, period: str = "all"):
+def _get_analytics(request: Request, period: str = "all", include_retired: bool = False):
     """获取分析数据"""
     user = get_current_user(request)
     conn = get_db()
@@ -221,7 +291,7 @@ def _get_analytics(request: Request, period: str = "all"):
         subs = conn.execute(SUB_SELECT, (user,)).fetchall()
     finally:
         conn.close()
-    return _merge_subscription_analytics(items, subs, period)
+    return _merge_subscription_analytics(items, subs, period, include_retired)
 
 
 def _export_data(request: Request):
@@ -229,8 +299,15 @@ def _export_data(request: Request):
     user = get_current_user(request)
     conn = get_db()
     try:
-        items = conn.execute("SELECT name,price,purchase_date,category,note,image_url,retirement_date,warranty_date,calc_method FROM items WHERE username=? ORDER BY created_at", (user,)).fetchall()
-        subs = conn.execute("SELECT name,start_date,billing_cycle,price_per_cycle,auto_renew FROM subscriptions WHERE username=? ORDER BY created_at", (user,)).fetchall()
+        items = conn.execute(
+            "SELECT name,price,purchase_date,category,note,image_url,status,"
+            "retirement_date,warranty_date,calc_method FROM items WHERE username=? ORDER BY created_at",
+            (user,),
+        ).fetchall()
+        subs = conn.execute(
+            "SELECT name,start_date,billing_cycle,price_per_cycle,auto_renew FROM subscriptions WHERE username=? ORDER BY created_at",
+            (user,),
+        ).fetchall()
         settings_rows = conn.execute("SELECT key, value FROM settings WHERE key LIKE ?", (user + ":%",)).fetchall()
         settings = {row["key"].split(":", 1)[1]: row["value"] for row in settings_rows}
         logger.info("数据导出: %s (物品%d, 订阅%d)", user, len(items), len(subs))
@@ -247,13 +324,32 @@ def _export_data(request: Request):
 
 def _import_items_batch(conn, items, user):
     """批量导入物品"""
+    today = date.today().isoformat()
     count = 0
     for item in items:
+        retirement_date = item.get("retirement_date", "")
+        explicit_status = item.get("status", "")
+        resolved_status = (
+            "已退役"
+            if retirement_date and retirement_date <= today
+            else explicit_status or "在用"
+        )
         conn.execute(
-            "INSERT INTO items (name,price,purchase_date,category,note,image_url,retirement_date,warranty_date,calc_method,username) VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (item.get("name", ""), item.get("price", 0), item.get("purchase_date", ""), item.get("category", ITEM_CATEGORY_DEFAULT),
-             item.get("note", ""), item.get("image_url", ""), item.get("retirement_date", ""),
-             item.get("warranty_date", ""), item.get("calc_method", "按时间"), user),
+            "INSERT INTO items (name,price,purchase_date,category,note,image_url,status,"
+            "retirement_date,warranty_date,calc_method,username) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                item.get("name", ""),
+                item.get("price", 0),
+                item.get("purchase_date", ""),
+                item.get("category", ITEM_CATEGORY_DEFAULT),
+                item.get("note", ""),
+                item.get("image_url", ""),
+                resolved_status,
+                retirement_date,
+                item.get("warranty_date", ""),
+                item.get("calc_method", "按时间"),
+                user,
+            ),
         )
         count += 1
     return count
@@ -265,9 +361,18 @@ def _import_subs_batch(conn, subs, user):
     for sub in subs:
         cycle = sub.get("billing_cycle", "月付")
         conn.execute(
-            "INSERT INTO subscriptions (name,start_date,billing_cycle,cycle_months,price_per_cycle,auto_renew,username) VALUES (?,?,?,?,?,?,?)",
-            (sub.get("name", ""), sub.get("start_date", ""), cycle, get_cycle_months(cycle),
-             sub.get("price_per_cycle", 0), 1 if sub.get("auto_renew") else 0, user),
+            "INSERT INTO subscriptions "
+            "(name,start_date,billing_cycle,cycle_months,price_per_cycle,auto_renew,username) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (
+                sub.get("name", ""),
+                sub.get("start_date", ""),
+                cycle,
+                get_cycle_months(cycle),
+                sub.get("price_per_cycle", 0),
+                1 if sub.get("auto_renew") else 0,
+                user,
+            ),
         )
         count += 1
     return count
@@ -297,7 +402,12 @@ def _import_full_data(request: Request, body: dict, mode: str = "append"):
         imported_settings = _import_settings_batch(conn, body.get("settings", {}), user)
         conn.commit()
         logger.info("数据导入: %s mode=%s (物品%d, 订阅%d, 设置%d)", user, mode, imported_items, imported_subs, imported_settings)
-        return {"ok": True, "imported_items": imported_items, "imported_subs": imported_subs, "imported_settings": imported_settings}
+        return {
+            "ok": True,
+            "imported_items": imported_items,
+            "imported_subs": imported_subs,
+            "imported_settings": imported_settings,
+        }
     finally:
         conn.close()
 

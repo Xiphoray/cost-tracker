@@ -14,8 +14,16 @@ from .auth import get_current_user
 logger = logging.getLogger("cost-tracker")
 
 # 物品表查询语句
-ITEM_SELECT_ALL = "SELECT id, name, price, purchase_date, category, status, note, image_url, retirement_date, warranty_date, calc_method, created_at FROM items WHERE username=? ORDER BY created_at DESC"
-ITEM_SELECT_BY_ID = "SELECT id, name, price, purchase_date, category, status, note, image_url, retirement_date, warranty_date, calc_method, created_at FROM items WHERE id=? AND username=?" 
+ITEM_SELECT_ALL = (
+    "SELECT id, name, price, purchase_date, category, status, note, image_url, "
+    "retirement_date, warranty_date, calc_method, created_at "
+    "FROM items WHERE username=? ORDER BY created_at DESC"
+)
+ITEM_SELECT_BY_ID = (
+    "SELECT id, name, price, purchase_date, category, status, note, image_url, "
+    "retirement_date, warranty_date, calc_method, created_at "
+    "FROM items WHERE id=? AND username=?"
+)
 
 
 def _get_items(request: Request):
@@ -37,8 +45,23 @@ def _create_item(request: Request, item: ItemCreate):
     conn = get_db()
     try:
         cur = conn.execute(
-            "INSERT INTO items (name, price, purchase_date, category, status, note, image_url, retirement_date, warranty_date, calc_method, username) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (item.name, item.price, item.purchase_date, item.category, ITEM_STATUS_ACTIVE, item.note, item.image_url, item.retirement_date, item.warranty_date, item.calc_method, user),
+            "INSERT INTO items ("
+            "name, price, purchase_date, category, status, note, image_url, "
+            "retirement_date, warranty_date, calc_method, username"
+            ") VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                item.name,
+                item.price,
+                item.purchase_date,
+                item.category,
+                ITEM_STATUS_ACTIVE,
+                item.note,
+                item.image_url,
+                item.retirement_date,
+                item.warranty_date,
+                item.calc_method,
+                user,
+            ),
         )
         conn.commit()
         row = conn.execute(ITEM_SELECT_BY_ID, (cur.lastrowid, user)).fetchone()
@@ -59,8 +82,21 @@ def _update_item(item_id: int, item: ItemUpdate, request: Request):
         for key, value in item.model_dump(exclude_none=True).items():
             item_dict[key] = value
         conn.execute(
-            "UPDATE items SET name=?, price=?, purchase_date=?, category=?, note=?, image_url=?, retirement_date=?, warranty_date=?, calc_method=? WHERE id=? AND username=?",
-            (item_dict["name"], item_dict["price"], item_dict["purchase_date"], item_dict["category"], item_dict["note"], item_dict["image_url"], item_dict.get("retirement_date", ""), item_dict.get("warranty_date", ""), item_dict.get("calc_method", "按时间"), item_id, user),
+            "UPDATE items SET name=?, price=?, purchase_date=?, category=?, note=?, image_url=?, "
+            "retirement_date=?, warranty_date=?, calc_method=? WHERE id=? AND username=?",
+            (
+                item_dict["name"],
+                item_dict["price"],
+                item_dict["purchase_date"],
+                item_dict["category"],
+                item_dict["note"],
+                item_dict["image_url"],
+                item_dict.get("retirement_date", ""),
+                item_dict.get("warranty_date", ""),
+                item_dict.get("calc_method", "按时间"),
+                item_id,
+                user,
+            ),
         )
         conn.commit()
         row = conn.execute(ITEM_SELECT_BY_ID, (item_id, user)).fetchone()
@@ -91,8 +127,23 @@ def _import_items(request: Request, items: list[ItemCreate], mode: str = "append
         count = 0
         for item in items:
             conn.execute(
-                "INSERT INTO items (name, price, purchase_date, category, status, note, image_url, retirement_date, warranty_date, calc_method, username) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                (item.name, item.price, item.purchase_date, item.category, ITEM_STATUS_ACTIVE, item.note, item.image_url, item.retirement_date, item.warranty_date, item.calc_method, user),
+                "INSERT INTO items ("
+                "name, price, purchase_date, category, status, note, image_url, "
+                "retirement_date, warranty_date, calc_method, username"
+                ") VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    item.name,
+                    item.price,
+                    item.purchase_date,
+                    item.category,
+                    ITEM_STATUS_ACTIVE,
+                    item.note,
+                    item.image_url,
+                    item.retirement_date,
+                    item.warranty_date,
+                    item.calc_method,
+                    user,
+                ),
             )
             count += 1
         conn.commit()

@@ -53,7 +53,7 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/xiphoray/cost-tracker.git
+git clone https://github.com/yourusername/cost-tracker.git
 cd cost-tracker
 
 # 创建虚拟环境

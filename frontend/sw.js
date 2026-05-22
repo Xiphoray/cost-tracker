@@ -33,12 +33,15 @@ self.addEventListener('activate', event => {
 
 // 请求拦截：静态资源走缓存优先，API 走网络优先
 self.addEventListener('fetch', event => {
-  const url = new URL(event.request.url);
+  const req = event.request;
+  if (req.method !== 'GET') return;
+
+  const url = new URL(req.url);
 
   // API 请求：网络优先，不缓存
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
-      fetch(event.request).catch(() =>
+      fetch(req).catch(() =>
         new Response(JSON.stringify({ error: 'offline' }), {
           status: 503,
           headers: { 'Content-Type': 'application/json' }
@@ -49,12 +52,12 @@ self.addEventListener('fetch', event => {
   }
 
   // 页面请求：网络优先，回退缓存
-  if (event.request.mode === 'navigate') {
+  if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request)
+      fetch(req)
         .then(response => {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
           return response;
         })
         .catch(() => caches.match('/'))
@@ -64,12 +67,12 @@ self.addEventListener('fetch', event => {
 
   // 静态资源：缓存优先，回退网络
   event.respondWith(
-    caches.match(event.request).then(cached => {
+    caches.match(req).then(cached => {
       if (cached) return cached;
-      return fetch(event.request).then(response => {
+      return fetch(req).then(response => {
         if (response.ok && url.origin === location.origin) {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
         }
         return response;
       });

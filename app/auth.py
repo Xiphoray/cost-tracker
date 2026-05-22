@@ -118,7 +118,10 @@ def _api_login(body: LoginRequest):
     """用户登录"""
     conn = get_db()
     try:
-        user = conn.execute("SELECT id, username, password_hash, is_admin, created_at FROM users WHERE username=?", (body.username,)).fetchone()
+        user = conn.execute(
+            "SELECT id, username, password_hash, is_admin, created_at FROM users WHERE username=?",
+            (body.username,),
+        ).fetchone()
         if not user:
             logger.warning("登录失败(用户不存在): %s", body.username)
             raise HTTPException(401, "用户名或密码错误")
@@ -156,7 +159,11 @@ def _api_logout(request: Request):
 
 def _api_auth_check(request: Request):
     """检查认证状态"""
-    return {"authenticated": hasattr(request.state, 'username'), "username": getattr(request.state, 'username', None), "is_admin": getattr(request.state, 'is_admin', False)}
+    return {
+        "authenticated": hasattr(request.state, 'username'),
+        "username": getattr(request.state, 'username', None),
+        "is_admin": getattr(request.state, 'is_admin', False),
+    }
 
 
 def _api_change_password(request: Request, body: ChangePasswordRequest):
@@ -193,7 +200,10 @@ def _api_change_username(request: Request, body: ChangeUsernameRequest):
             raise HTTPException(400, "用户名已存在")
         conn.execute("UPDATE users SET username=? WHERE username=?", (body.new_username, username))
         conn.execute("UPDATE sessions SET username=? WHERE username=?", (body.new_username, username))
-        conn.execute("UPDATE settings SET key = REPLACE(key, ?, ?) WHERE key LIKE ?", (username + ":", body.new_username + ":", username + ":%"))
+        conn.execute(
+            "UPDATE settings SET key = REPLACE(key, ?, ?) WHERE key LIKE ?",
+            (username + ":", body.new_username + ":", username + ":%"),
+        )
         conn.commit()
         logger.warning("用户名修改: %s -> %s", username, body.new_username)
         return {"ok": True, "username": body.new_username}
