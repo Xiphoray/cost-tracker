@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cost-tracker-v1';
+const CACHE_NAME = 'cost-tracker-v2';
 const STATIC_ASSETS = [
   '/',
   '/css/style.css',

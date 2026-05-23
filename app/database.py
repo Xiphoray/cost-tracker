@@ -51,13 +51,14 @@ def _create_items_table(conn):
             retirement_date TEXT DEFAULT '',
             warranty_date TEXT DEFAULT '',
             calc_method TEXT NOT NULL DEFAULT '按时间',
+            usage_count INTEGER NOT NULL DEFAULT 0,
             created_at TEXT DEFAULT (datetime('now','localtime'))
         )
     """)
     for col, default in [
         ("retirement_date", ""),
-        ("warranty_date", ""),
         ("calc_method", "按时间"),
+        ("usage_count", "0"),
     ]:
         _safe_alter_table(conn, "items", col, default)
 

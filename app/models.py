@@ -14,8 +14,8 @@ class ItemCreate(BaseModel):
     note: str = ""
     image_url: str = ""
     retirement_date: str = ""
-    warranty_date: str = ""
     calc_method: str = "按时间"
+    usage_count: int = 0
 
 
 class ItemUpdate(BaseModel):
@@ -26,8 +26,8 @@ class ItemUpdate(BaseModel):
     note: Optional[str] = None
     image_url: Optional[str] = None
     retirement_date: Optional[str] = None
-    warranty_date: Optional[str] = None
     calc_method: Optional[str] = None
+    usage_count: Optional[int] = None
 
 
 class SubscriptionCreate(BaseModel):

@@ -16,12 +16,12 @@ logger = logging.getLogger("cost-tracker")
 # 物品表查询语句
 ITEM_SELECT_ALL = (
     "SELECT id, name, price, purchase_date, category, status, note, image_url, "
-    "retirement_date, warranty_date, calc_method, created_at "
+    "retirement_date, warranty_date, calc_method, usage_count, created_at "
     "FROM items WHERE username=? ORDER BY created_at DESC"
 )
 ITEM_SELECT_BY_ID = (
     "SELECT id, name, price, purchase_date, category, status, note, image_url, "
-    "retirement_date, warranty_date, calc_method, created_at "
+    "retirement_date, warranty_date, calc_method, usage_count, created_at "
     "FROM items WHERE id=? AND username=?"
 )
 
@@ -47,8 +47,8 @@ def _create_item(request: Request, item: ItemCreate):
         cur = conn.execute(
             "INSERT INTO items ("
             "name, price, purchase_date, category, status, note, image_url, "
-            "retirement_date, warranty_date, calc_method, username"
-            ") VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "retirement_date, warranty_date, calc_method, usage_count, username"
+            ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 item.name,
                 item.price,
@@ -58,8 +58,9 @@ def _create_item(request: Request, item: ItemCreate):
                 item.note,
                 item.image_url,
                 item.retirement_date,
-                item.warranty_date,
+                "",
                 item.calc_method,
+                item.usage_count,
                 user,
             ),
         )
@@ -83,7 +84,7 @@ def _update_item(item_id: int, item: ItemUpdate, request: Request):
             item_dict[key] = value
         conn.execute(
             "UPDATE items SET name=?, price=?, purchase_date=?, category=?, note=?, image_url=?, "
-            "retirement_date=?, warranty_date=?, calc_method=? WHERE id=? AND username=?",
+            "retirement_date=?, warranty_date=?, calc_method=?, usage_count=? WHERE id=? AND username=?",
             (
                 item_dict["name"],
                 item_dict["price"],
@@ -92,8 +93,9 @@ def _update_item(item_id: int, item: ItemUpdate, request: Request):
                 item_dict["note"],
                 item_dict["image_url"],
                 item_dict.get("retirement_date", ""),
-                item_dict.get("warranty_date", ""),
+                "",
                 item_dict.get("calc_method", "按时间"),
+                item_dict.get("usage_count", 0),
                 item_id,
                 user,
             ),
@@ -129,20 +131,21 @@ def _import_items(request: Request, items: list[ItemCreate], mode: str = "append
             conn.execute(
                 "INSERT INTO items ("
                 "name, price, purchase_date, category, status, note, image_url, "
-                "retirement_date, warranty_date, calc_method, username"
-                ") VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                (
-                    item.name,
-                    item.price,
-                    item.purchase_date,
-                    item.category,
-                    ITEM_STATUS_ACTIVE,
-                    item.note,
-                    item.image_url,
-                    item.retirement_date,
-                    item.warranty_date,
-                    item.calc_method,
-                    user,
+                "retirement_date, warranty_date, calc_method, usage_count, username"
+               ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+               (
+                   item.name,
+                   item.price,
+                   item.purchase_date,
+                   item.category,
+                   ITEM_STATUS_ACTIVE,
+                   item.note,
+                   item.image_url,
+                   item.retirement_date,
+                   "",
+                   item.calc_method,
+                    item.usage_count,
+                   user,
                 ),
             )
             count += 1

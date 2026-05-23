@@ -19,6 +19,30 @@ if (typeof ICON_REGISTRY !== 'undefined') {
 
 let allItems = [];
 
+// ── calc_method 切换：显示/隐藏使用次数输入 ──
+function syncCalcMethod(method = '按时间', usageCount = 0) {
+  document.querySelectorAll('#calcToggle button').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.method === method);
+  });
+  const row = document.getElementById('usageCountRow');
+  if (row) row.style.display = method === '按频次' ? '' : 'none';
+  const input = document.getElementById('fUsageCount');
+  if (input) input.value = method === '按频次' && usageCount ? usageCount : '';
+}
+
+function setupCalcToggle() {
+  document.querySelectorAll('#calcToggle button').forEach(btn => {
+    btn.addEventListener('click', () => syncCalcMethod(btn.dataset.method));
+  });
+  const usageInput = document.getElementById('fUsageCount');
+  if (usageInput) {
+    usageInput.addEventListener('wheel', event => {
+      event.preventDefault();
+      event.stopPropagation();
+    }, { passive: false });
+  }
+}
+
 // ── 判断物品状态：按退役时间 ──
 function getItemStatus(item) {
   if (!item.retirement_date) return 'active';
@@ -28,6 +52,20 @@ function getItemStatus(item) {
 
 function getItemStatusLabel(item) {
   return getItemStatus(item) === 'retired' ? '已退役' : '在用';
+}
+
+function getUsageCount(item) {
+  return parseInt(item.usage_count, 10) || 0;
+}
+
+function formatCostLabel(item) {
+  if (item.calc_method === '不计算') return '不计成本';
+  if (item.calc_method === '按频次') {
+    const count = getUsageCount(item);
+    const unitCost = count > 0 ? item.price / count : 0;
+    return `¥${unitCost.toFixed(2)}/次 × ${count}次`;
+  }
+  return `¥${item.daily_cost.toFixed(2)}/天`;
 }
 
 function openAddModal() {
@@ -40,10 +78,8 @@ function openAddModal() {
   document.getElementById('fNote').value = '';
   document.getElementById('fImage').value = '';
   document.getElementById('fRetireDate').value = '';
-  document.getElementById('fWarrantyDate').value = '';
   document.getElementById('selectedIconEmoji').textContent = '📦';
-  document.querySelectorAll('#calcToggle button').forEach(b => b.classList.remove('active'));
-  document.querySelector('#calcToggle button[data-method="按时间"]').classList.add('active');
+  syncCalcMethod('按时间');
   document.getElementById('itemModal').classList.add('open');
 }
 
@@ -63,13 +99,10 @@ function openEditModal(id) {
   document.getElementById('fNote').value = item.note || '';
   document.getElementById('fImage').value = item.image_url || '';
   document.getElementById('fRetireDate').value = item.retirement_date || '';
-  document.getElementById('fWarrantyDate').value = item.warranty_date || '';
   const selectedEmoji = item.image_url && item.image_url.length <= 4 ? item.image_url : (CATEGORY_ICONS[item.category] || '📦');
   document.getElementById('selectedIconEmoji').textContent = selectedEmoji;
   const method = item.calc_method || '按时间';
-  document.querySelectorAll('#calcToggle button').forEach(b => b.classList.remove('active'));
-  const target = document.querySelector(`#calcToggle button[data-method="${method}"]`);
-  if (target) target.classList.add('active');
+  syncCalcMethod(method, item.usage_count || 0);
   document.getElementById('itemModal').classList.add('open');
 }
 
@@ -84,9 +117,11 @@ async function saveItem() {
     note: document.getElementById('fNote').value,
     image_url: document.getElementById('fImage').value,
     retirement_date: document.getElementById('fRetireDate').value || '',
-    warranty_date: document.getElementById('fWarrantyDate').value || '',
+    warranty_date: '',
     calc_method: activeCalc ? activeCalc.dataset.method : '按时间',
+    usage_count: parseInt(document.getElementById('fUsageCount').value, 10) || 0,
   };
+  if (data.calc_method !== '按频次') data.usage_count = 0;
   if (!data.name || !data.price || !data.purchase_date) {
     alert('请填写名称、价格和日期');
     return;
@@ -179,11 +214,10 @@ function renderItems(items) {
               </div>
               <div class="price-row">
                 <span class="price">¥${item.price.toFixed(2)}</span>
-                <span class="daily">¥<strong>${item.daily_cost.toFixed(2)}</strong>/天</span>
+                <span class="daily">${formatCostLabel(item)}</span>
               </div>
               <div class="days">📅 ${item.purchase_date} · 已用 ${item.days} 天</div>
               ${item.retirement_date ? `<div class="days">🏁 退役: ${item.retirement_date}</div>` : ''}
-              ${item.warranty_date ? `<div class="days">🛡 保修至: ${item.warranty_date}</div>` : ''}
               ${note}
               <div class="actions">
                 <button class="btn btn-outline btn-sm" onclick="openEditModal(${item.id})">编辑</button>
@@ -276,7 +310,7 @@ function openAddSubModal() {
   document.getElementById('fSubName').value = '';
   document.getElementById('fSubStart').value = new Date().toISOString().slice(0, 10);
   document.getElementById('fSubPrice').value = '';
-  document.getElementById('fSubAutoRenew').checked = false;
+  syncSubAutoRenew(1);
   document.querySelectorAll('#subCycleToggle button').forEach(b => b.classList.remove('active'));
   document.querySelector('#subCycleToggle button[data-cycle="月付"]').classList.add('active');
   document.getElementById('subModal').classList.add('open');
@@ -289,7 +323,7 @@ function openEditSubModal(id) {
   document.getElementById('fSubName').value = s.name;
   document.getElementById('fSubStart').value = s.start_date;
   document.getElementById('fSubPrice').value = s.price_per_cycle;
-  document.getElementById('fSubAutoRenew').checked = !!s.auto_renew;
+  syncSubAutoRenew(s.auto_renew ? 1 : 0);
   document.querySelectorAll('#subCycleToggle button').forEach(b => b.classList.remove('active'));
   const t = document.querySelector(`#subCycleToggle button[data-cycle="${s.billing_cycle}"]`);
   if (t) t.classList.add('active');
@@ -299,6 +333,18 @@ function openEditSubModal(id) {
 function closeSubModal() {
   document.getElementById('subModal').classList.remove('open');
 }
+function syncSubAutoRenew(value) {
+  document.querySelectorAll('#subAutoRenewToggle button').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.auto === String(value));
+  });
+}
+
+function selectSubAutoRenew(event) {
+  event.preventDefault();
+  document.querySelectorAll('#subAutoRenewToggle button').forEach(b => b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+}
+
 
 function selectSubCycle(event) {
   event.preventDefault();
@@ -314,7 +360,7 @@ async function saveSubscription() {
     start_date: document.getElementById('fSubStart').value,
     billing_cycle: active ? active.dataset.cycle : '月付',
     price_per_cycle: parseFloat(document.getElementById('fSubPrice').value),
-    auto_renew: document.getElementById('fSubAutoRenew').checked,
+    auto_renew: document.querySelector('#subAutoRenewToggle button.active')?.dataset.auto === '1',
   };
   if (!data.name || !data.start_date || !data.price_per_cycle) {
     alert('请填写名称、开始时间和费用');
@@ -484,196 +530,7 @@ document.getElementById("itemModal").addEventListener("click", function(e) {
   if (e.target === this) closeModal();
 });
 
+setupCalcToggle();
 loadStats();
 loadItems();
 loadSubscriptions();
-
-
-// ── Flatpickr 日期选择器初始化 ──
-
-// 将年份 input 替换为自定义下拉框（列表挂在 body 上，不受日历容器裁切）
-function replaceYearWithSelect(fp) {
-  const calendar = fp.calendarContainer;
-  if (!calendar) return;
-  const yearInput = calendar.querySelector('.cur-year');
-  if (!yearInput || yearInput.parentNode.classList.contains('fp-year-dropdown')) return;
-
-  const from = fp.config.yearRangeFrom || 2000;
-  const to = fp.config.yearRangeTo || new Date().getFullYear();
-  let currentVal = parseInt(yearInput.value) || to;
-
-  const wrapper = document.createElement('div');
-  wrapper.className = 'fp-year-dropdown';
-
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'fp-year-btn';
-  btn.textContent = currentVal + '年 ▾';
-
-  // 列表挂到 body
-  let list = document.getElementById('fp-year-list-global');
-  if (!list) {
-    list = document.createElement('div');
-    list.className = 'fp-year-list';
-    list.id = 'fp-year-list-global';
-    document.body.appendChild(list);
-  }
-
-  // 拦截 mousedown，防止 flatpickr 因"点击外部"而关闭
-  list.addEventListener('mousedown', function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-  });
-
-  function renderList() {
-    list.innerHTML = '';
-    for (let y = to; y >= from; y--) {
-      const item = document.createElement('div');
-      item.className = 'fp-year-item' + (y === currentVal ? ' active' : '');
-      item.textContent = y + '年';
-      item.dataset.year = y;
-      item.addEventListener('click', function(e) {
-        e.stopPropagation();
-        const yr = parseInt(this.dataset.year);
-        fp.changeYear(yr);
-        currentVal = yr;
-        btn.textContent = yr + '年 ▾';
-        list.querySelectorAll('.fp-year-item').forEach(el => el.classList.remove('active'));
-        this.classList.add('active');
-        closeList();
-      });
-      list.appendChild(item);
-    }
-  }
-
-  function positionList() {
-    const rect = btn.getBoundingClientRect();
-    list.style.position = 'fixed';
-    list.style.left = rect.left + 'px';
-    list.style.top = (rect.bottom + 4) + 'px';
-    list.style.minWidth = rect.width + 'px';
-  }
-
-  function openList() {
-    renderList();
-    positionList();
-    list.classList.add('open');
-    setTimeout(() => {
-      const active = list.querySelector('.fp-year-item.active');
-      if (active) active.scrollIntoView({ block: 'nearest' });
-    }, 0);
-  }
-
-  function closeList() {
-    list.classList.remove('open');
-  }
-
-  // 按钮也拦截 mousedown
-  btn.addEventListener('mousedown', function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-  });
-  btn.addEventListener('click', function(e) {
-    e.stopPropagation();
-    if (list.classList.contains('open')) closeList(); else openList();
-  });
-
-  wrapper.appendChild(btn);
-  yearInput.parentNode.replaceChild(wrapper, yearInput);
-}
-
-// 在 modal 滚动时重新定位日历
-function attachModalScrollHandler(fp) {
-  const modal = document.querySelector('.modal-overlay.open .modal');
-  if (!modal) return;
-  // 清除旧的监听（如果有标记则跳过）
-  if (modal._fpScrollAttached) return;
-  modal._fpScrollAttached = true;
-  modal.addEventListener('scroll', function() {
-    if (fp.isOpen && fp.calendarContainer) {
-      fp.position();
-    }
-  }, { passive: true });
-}
-
-function initFlatpickr() {
-  const currentYear = new Date().getFullYear();
-  
-  const dateConfig = {
-    locale: 'zh',
-    dateFormat: 'Y-m-d',
-    disableMobile: true,
-    animate: false,
-    monthSelectorType: 'dropdown',
-    shorthandCurrentYear: false,
-    yearRangeFrom: 2000,
-    yearRangeTo: currentYear,
-    appendTo: document.body,
-    onOpen: [function(selectedDates, dateStr, instance) {
-      // 年份下拉
-      setTimeout(() => replaceYearWithSelect(instance), 10);
-      // modal 滚动重定位
-      setTimeout(() => attachModalScrollHandler(instance), 10);
-    }],
-  };
-
-  flatpickr('#fDate', {
-    ...dateConfig,
-    defaultDate: new Date(),
-    maxDate: 'today',
-  });
-
-  flatpickr('#fRetireDate', {
-    ...dateConfig,
-    maxDate: 'today',
-    allowInput: true,
-  });
-
-  flatpickr('#fWarrantyDate', {
-    ...dateConfig,
-    minDate: 'today',
-    allowInput: true,
-  });
-
-  flatpickr('#fSubStart', {
-    ...dateConfig,
-    defaultDate: new Date(),
-    maxDate: 'today',
-  });
-}
-
-// 在 DOM 加载完成后初始化
-document.addEventListener('DOMContentLoaded', initFlatpickr);
-
-// 在打开弹窗时重新初始化（确保动态内容也能用）
-const originalOpenAddModal = window.openAddModal;
-if (originalOpenAddModal) {
-  window.openAddModal = function() {
-    originalOpenAddModal();
-    setTimeout(initFlatpickr, 50);
-  };
-}
-
-const originalOpenEditModal = window.openEditModal;
-if (originalOpenEditModal) {
-  window.openEditModal = function(id) {
-    originalOpenEditModal(id);
-    setTimeout(initFlatpickr, 50);
-  };
-}
-
-const originalOpenAddSubModal = window.openAddSubModal;
-if (originalOpenAddSubModal) {
-  window.openAddSubModal = function() {
-    originalOpenAddSubModal();
-    setTimeout(initFlatpickr, 50);
-  };
-}
-
-const originalOpenEditSubModal = window.openEditSubModal;
-if (originalOpenEditSubModal) {
-  window.openEditSubModal = function(id) {
-    originalOpenEditSubModal(id);
-    setTimeout(initFlatpickr, 50);
-  };
-}

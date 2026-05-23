@@ -364,6 +364,7 @@ a:hover { color: var(--accent-hover); }
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   padding: 10px 0;
   border-bottom: 1px solid var(--border);
   font-size: 14px;
@@ -385,7 +386,9 @@ a:hover { color: var(--accent-hover); }
   background-repeat: no-repeat;
   background-position: right 12px center;
   background-size: 16px;
-  min-width: 150px;
+  width: 100%;
+  max-width: 220px;
+  min-width: 0;
   cursor: pointer;
   transition: border-color 0.2s, box-shadow 0.2s;
   position: relative;
@@ -439,8 +442,9 @@ input[type="number"]::-webkit-outer-spin-button {
   }
 }
 
-/* 计算方式切换 */
-.calc-toggle {
+/* ── 通用选项按钮 / 分段切换 ── */
+.calc-toggle,
+.option-toggle {
   display: flex;
   gap: 0;
   background: var(--bg);
@@ -448,7 +452,8 @@ input[type="number"]::-webkit-outer-spin-button {
   padding: 3px;
   border: 1px solid var(--border);
 }
-.calc-toggle button {
+.calc-toggle button,
+.option-toggle button {
   flex: 1;
   border: none;
   background: transparent;
@@ -459,7 +464,8 @@ input[type="number"]::-webkit-outer-spin-button {
   cursor: pointer;
   transition: all .2s;
 }
-.calc-toggle button.active {
+.calc-toggle button.active,
+.option-toggle button.active {
   background: var(--card);
   color: var(--text);
   font-weight: 600;
@@ -1389,6 +1395,19 @@ details[open] > .collapsible-header::after {
   .insight-header { padding: 16px 0 0; }
   .insight-section { margin: 12px 0; padding: 16px; }
   .cat-cards { grid-template-columns: repeat(2, 1fr); }
+  .form-timeline-row {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+  .form-timeline-row span {
+    flex: 1 1 100%;
+    min-width: 0;
+    margin-bottom: 6px;
+  }
+  .form-timeline-row .form-input-date {
+    flex: 1 1 100%;
+    max-width: none;
+  }
 }
 
 /* ── 暗色模式 — 古风夜色 ── */

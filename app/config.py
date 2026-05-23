@@ -34,4 +34,4 @@ DEFAULT_ADMIN_PASSWORD = os.environ.get("COST_TRACKER_ADMIN_PASSWORD", "admin123
 
 # ── SQL 白名单（防注入） ──
 ALLOWED_TABLES = {"items", "subscriptions", "users", "sessions", "settings"}
-ALLOWED_COLUMNS = {"retirement_date", "warranty_date", "calc_method", "username", "is_admin"}
+ALLOWED_COLUMNS = {"retirement_date", "calc_method", "usage_count", "username", "is_admin"}

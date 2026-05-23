@@ -3,8 +3,6 @@
 """
 
 import logging
-import base64
-import binascii
 import bcrypt
 from datetime import datetime
 from fastapi import HTTPException, Request
@@ -35,28 +33,15 @@ def is_admin(request: Request) -> bool:
 
 
 def _verify_password(stored_password: str, plain_password: str) -> bool:
-    """验证密码，支持 bcrypt 和旧的 base64 格式"""
-    if stored_password.startswith('$2b$'):
-        return bcrypt.checkpw(plain_password.encode(), stored_password.encode())
-    else:
-        try:
-            decoded_pw = base64.b64decode(stored_password).decode()
-            return decoded_pw == plain_password
-        except (binascii.Error, UnicodeDecodeError):
-            return False
+    """验证 bcrypt 密码"""
+    if not stored_password.startswith('$2b$'):
+        return False
+    return bcrypt.checkpw(plain_password.encode(), stored_password.encode())
 
 
 def _hash_password(plain_password: str) -> str:
     """生成 bcrypt 密码哈希"""
     return bcrypt.hashpw(plain_password.encode(), bcrypt.gensalt()).decode()
-
-
-def _migrate_password_if_needed(conn, username: str, stored_password: str, plain_password: str):
-    """如果密码是旧的 base64 格式，自动迁移到 bcrypt"""
-    if not stored_password.startswith('$2b$'):
-        new_hash = _hash_password(plain_password)
-        conn.execute("UPDATE users SET password_hash=? WHERE username=?", (new_hash, username))
-        conn.commit()
 
 
 # ── 中间件 ──
@@ -131,7 +116,6 @@ def _api_login(body: LoginRequest):
             logger.warning("登录失败(密码错误): %s", body.username)
             raise HTTPException(401, "用户名或密码错误")
 
-        _migrate_password_if_needed(conn, body.username, stored_password, body.password)
         token = create_session(conn, body.username)
         resp = JSONResponse({"ok": True, "username": body.username})
         resp.set_cookie("session_token", token, max_age=MAX_SESSION_AGE_SECONDS, httponly=True, samesite="lax")

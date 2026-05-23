@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>设置 — 白驹过隙</title>
-  <link rel="stylesheet" href="/css/style.css?v=28">
+  <link rel="stylesheet" href="/css/style.css?v=29">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#e94560">
   <meta name="mobile-web-app-capable" content="yes">
@@ -72,9 +72,11 @@
       </div>
       <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">用 AI 识别购物小票、订单截图时，复制这段提示让 AI 按格式输出，粘贴到下方即可导入。</p>
       <div class="ai-prompt" id="aiPrompt">请从这些图片中识别所有购买物品/订单/收据，然后按以下 JSON 格式输出：
-[{"name": "物品名称", "price": 价格数字, "purchase_date": "YYYY-MM-DD", "category": "类别", "retirement_date": "", "note": "备注"}]
+[{"name": "物品名称", "price": 价格数字, "purchase_date": "YYYY-MM-DD", "category": "类别", "retirement_date": "", "calc_method": "按时间", "usage_count": 0, "note": "备注"}]
 类别只能是：数码产品、家居日用、家用电器、户外运动、服装鞋帽、美妆护肤、食品饮料、交通工具、书籍文具、其他
 retirement_date 留空表示在用，填写日期表示退役日期。
+calc_method 三种值：按时间（默认，耐用品）、按频次（消耗品/体验类）、不计算（礼物/收藏品）。
+usage_count 仅当 calc_method 为"按频次"时填写使用次数，其他情况填 0。
 note 先写一句对物品的评价，再补充必要信息，不要写"已下架"等无用内容。
 如果看不清日期，用今天日期；看不清类别，用"其他"。</div>
     </div>

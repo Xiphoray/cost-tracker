@@ -40,8 +40,16 @@ def subscription_to_dict(sub) -> dict:
 
 def row_to_dict(row) -> dict:
     result = dict(row)
-    result["days"] = calc_days(result["purchase_date"])
-    result["daily_cost"] = round(result["price"] / result["days"], 2)
+    days = calc_days(result["purchase_date"])
+    result["days"] = days
+    calc = result.get("calc_method", "按时间")
+    if calc == "按频次":
+        count = result.get("usage_count", 0)
+        result["daily_cost"] = round(result["price"] / count, 2) if count > 0 else 0
+    elif calc == "不计算":
+        result["daily_cost"] = 0
+    else:
+        result["daily_cost"] = round(result["price"] / days, 2)
     return result
 
 

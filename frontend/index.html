@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>白驹过隙 — 日均成本追踪</title>
-  <link rel="stylesheet" href="/css/style.css?v=28">
+  <link rel="stylesheet" href="/css/style.css?v=29">
   <link rel="stylesheet" href="/vendor/flatpickr.min.css">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#e94560">
@@ -122,18 +122,24 @@
           <span>🕐 退役日期（选填）</span>
           <input type="date" id="fRetireDate" class="form-input-date">
         </div>
-        <div class="form-timeline-row">
-          <span>✅ 保修到期（选填）</span>
-          <input type="date" id="fWarrantyDate" class="form-input-date">
-        </div>
       </div>
 
       <!-- 计算方式 -->
       <div class="form-section-title">计算方式</div>
-      <div class="calc-toggle" id="calcToggle">
+      <div class="option-toggle calc-toggle" id="calcToggle">
         <button class="active" data-method="按时间">按时间</button>
         <button data-method="按频次">按频次</button>
         <button data-method="不计算">不计算</button>
+      </div>
+
+      <!-- 使用次数（按频次时显示） -->
+      <div class="form-card" id="usageCountRow" style="display:none;">
+        <label class="form-label">使用次数</label>
+        <div class="form-price-row">
+          <input type="number" id="fUsageCount" placeholder="0" min="0" step="1" class="form-input-price">
+          <span class="price-symbol" style="margin-left:8px;">次</span>
+        </div>
+        <div class="form-help">每次使用的成本 = 价格 ÷ 使用次数</div>
       </div>
 
       <!-- 备注 -->
@@ -173,7 +179,7 @@
   </div>
 
   <script src="/js/icons.js"></script>
-  <script src="/js/app.js?v=16"></script>
+  <script src="/js/app.js?v=20"></script>
   <script src="/vendor/flatpickr.min.js"></script>
   <script src="/vendor/flatpickr-zh.js"></script>
 
@@ -193,7 +199,7 @@
       </div>
       <div class="form-card">
         <label class="form-label">订阅期限</label>
-        <div class="calc-toggle" id="subCycleToggle">
+        <div class="option-toggle calc-toggle" id="subCycleToggle">
           <button class="active" data-cycle="月付" onclick="selectSubCycle(event)">月付</button>
           <button data-cycle="季付" onclick="selectSubCycle(event)">季付</button>
           <button data-cycle="半年付" onclick="selectSubCycle(event)">半年付</button>
@@ -208,9 +214,11 @@
         </div>
       </div>
       <div class="form-card">
-        <label class="form-label">
-          <input type="checkbox" id="fSubAutoRenew"> 到期自动续订
-        </label>
+        <label class="form-label">到期续费方式</label>
+        <div class="option-toggle" id="subAutoRenewToggle">
+          <button class="active" data-auto="1" onclick="selectSubAutoRenew(event)">自动续订</button>
+          <button data-auto="0" onclick="selectSubAutoRenew(event)">手动续订</button>
+        </div>
       </div>
       <div class="modal-actions">
         <button class="btn btn-outline" onclick="closeSubModal()">取消</button>

@@ -17,7 +17,7 @@ logger = logging.getLogger("cost-tracker")
 # 通用查询语句
 ITEM_SELECT = (
     "SELECT id, name, price, purchase_date, category, status, note, image_url, "
-    "retirement_date, warranty_date, calc_method, created_at FROM items WHERE username=?"
+    "retirement_date, warranty_date, calc_method, usage_count, created_at FROM items WHERE username=?"
 )
 SUB_SELECT = (
     "SELECT id, name, start_date, billing_cycle, cycle_months, price_per_cycle, auto_renew, created_at "
@@ -72,8 +72,16 @@ def _calculate_daily_ranking(items: list) -> list:
     """计算日均成本排行"""
     daily_ranking = []
     for item in items:
-        days = calc_days(item["purchase_date"])
-        daily_ranking.append({"name": item["name"], "daily_cost": round(item["price"] / days, 2)})
+        calc = item.get("calc_method", "按时间")
+        if calc == "不计算":
+            continue
+        if calc == "按频次":
+            count = item.get("usage_count", 0)
+            dc = round(item["price"] / count, 2) if count > 0 else 0
+        else:
+            days = calc_days(item["purchase_date"])
+            dc = round(item["price"] / days, 2)
+        daily_ranking.append({"name": item["name"], "daily_cost": dc})
     daily_ranking.sort(key=lambda x: x["daily_cost"], reverse=True)
     return daily_ranking[:10]
 
@@ -174,8 +182,15 @@ def _calculate_item_financials(items, sub_monthly, sub_daily):
     daily_costs = []
     month_spending = 0
     for item in items:
-        days = calc_days(item["purchase_date"])
-        daily_costs.append(item["price"] / days)
+        calc = item.get("calc_method", "按时间")
+        if calc == "不计算":
+            pass
+        elif calc == "按频次":
+            count = item.get("usage_count", 0)
+            daily_costs.append(item["price"] / count if count > 0 else 0)
+        else:
+            days = calc_days(item["purchase_date"])
+            daily_costs.append(item["price"] / days)
         purchase_date = datetime.strptime(item["purchase_date"], "%Y-%m-%d").date()
         if purchase_date.month == today.month and purchase_date.year == today.year:
             month_spending += item["price"]
@@ -275,7 +290,7 @@ def _get_stats(request: Request):
     user = get_current_user(request)
     conn = get_db()
     try:
-        items = conn.execute(ITEM_SELECT, (user,)).fetchall()
+        items = [dict(r) for r in conn.execute(ITEM_SELECT, (user,)).fetchall()]
         subs = conn.execute(SUB_SELECT, (user,)).fetchall()
     finally:
         conn.close()
@@ -287,7 +302,7 @@ def _get_analytics(request: Request, period: str = "all", include_retired: bool 
     user = get_current_user(request)
     conn = get_db()
     try:
-        items = conn.execute(ITEM_SELECT, (user,)).fetchall()
+        items = [dict(r) for r in conn.execute(ITEM_SELECT, (user,)).fetchall()]
         subs = conn.execute(SUB_SELECT, (user,)).fetchall()
     finally:
         conn.close()
@@ -301,7 +316,7 @@ def _export_data(request: Request):
     try:
         items = conn.execute(
             "SELECT name,price,purchase_date,category,note,image_url,status,"
-            "retirement_date,warranty_date,calc_method FROM items WHERE username=? ORDER BY created_at",
+            "retirement_date,warranty_date,calc_method,usage_count FROM items WHERE username=? ORDER BY created_at",
             (user,),
         ).fetchall()
         subs = conn.execute(
@@ -336,7 +351,7 @@ def _import_items_batch(conn, items, user):
         )
         conn.execute(
             "INSERT INTO items (name,price,purchase_date,category,note,image_url,status,"
-            "retirement_date,warranty_date,calc_method,username) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "retirement_date,warranty_date,calc_method,usage_count,username) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 item.get("name", ""),
                 item.get("price", 0),
@@ -346,8 +361,9 @@ def _import_items_batch(conn, items, user):
                 item.get("image_url", ""),
                 resolved_status,
                 retirement_date,
-                item.get("warranty_date", ""),
+                "",
                 item.get("calc_method", "按时间"),
+                item.get("usage_count", 0),
                 user,
             ),
         )

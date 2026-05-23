@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>管理后台 — 白驹过隙</title>
-  <link rel="stylesheet" href="/css/style.css?v=28">
+  <link rel="stylesheet" href="/css/style.css?v=29">
   <style>
     .admin-container { max-width: 800px; margin: 0 auto; padding: 24px 20px; }
     .admin-header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
@@ -18,8 +18,8 @@
     .user-name { font-weight: 600; }
     .user-admin-tag { background: var(--accent-light); color: var(--accent); font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-left: 6px; }
     .user-stat { color: var(--text2); font-size: 13px; }
-    .user-actions { display: flex; gap: 8px; }
-    .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border); background: var(--card); color: var(--text); transition: all 0.2s; }
+    .user-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border); background: var(--card); color: var(--text); transition: all 0.2s; white-space: nowrap; }
     .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
     .btn-sm.danger { color: var(--accent); border-color: var(--accent); }
     .btn-sm.danger:hover { background: var(--accent); color: #fff; }
@@ -32,6 +32,24 @@
     .confirm-box { background: var(--card); border-radius: 12px; padding: 24px; max-width: 360px; width: 90%; text-align: center; box-shadow: 0 12px 40px rgba(60,50,30,.15); }
     .confirm-box p { margin: 0 0 20px; font-size: 15px; color: var(--text); }
     .confirm-box .btns { display: flex; gap: 12px; justify-content: center; }
+
+    /* —— Mobile: card layout —— */
+    @media (max-width: 640px) {
+      .admin-container { padding: 16px 12px; }
+      .admin-header h2 { font-size: 17px; }
+
+      /* Hide the table header row */
+      .user-table thead { display: none; }
+      .user-table, .user-table tbody { display: block; }
+      .user-table tr { display: block; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+      .user-table tr:hover td { background: transparent; }
+      .user-table td { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+      .user-table td:last-child { border-bottom: none; padding-top: 10px; justify-content: flex-start; }
+      .user-table td::before { content: attr(data-label); font-size: 12px; color: var(--text2); font-weight: 600; flex-shrink: 0; margin-right: 12px; }
+      .user-table td:last-child::before { display: none; }
+      .user-actions { width: 100%; }
+      .btn-sm { padding: 6px 12px; font-size: 13px; }
+    }
   </style>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#e94560">
@@ -104,15 +122,15 @@
       const tbody = document.getElementById('userTableBody');
       tbody.innerHTML = users.map(u => `
         <tr>
-          <td>
+          <td data-label="用户">
             <span class="user-name">${u.username}</span>
             ${u.is_admin ? '<span class="user-admin-tag">管理员</span>' : ''}
             ${u.username === currentUser ? '<span class="user-admin-tag" style="background:var(--bg);color:var(--text2)">当前</span>' : ''}
           </td>
-          <td class="user-stat">${u.item_count}</td>
-          <td class="user-stat">${u.sub_count}</td>
-          <td class="user-stat">${u.active_sessions}/${u.total_sessions}</td>
-          <td class="user-stat">${u.created_at ? u.created_at.slice(0, 10) : '-'}</td>
+          <td data-label="物品" class="user-stat">${u.item_count}</td>
+          <td data-label="订阅" class="user-stat">${u.sub_count}</td>
+          <td data-label="会话" class="user-stat">${u.active_sessions}/${u.total_sessions}</td>
+          <td data-label="注册" class="user-stat">${u.created_at ? u.created_at.slice(0, 10) : '-'}</td>
           <td>
             <div class="user-actions">
               ${u.username !== currentUser ? `
